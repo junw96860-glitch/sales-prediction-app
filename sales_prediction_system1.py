@@ -1823,19 +1823,34 @@ def main():
     elif st.session_state.selected_page == "全面预算汇总":
         st.header("📋 全面预算汇总表")
         if not st.session_state.data_manager['income'].data.empty:
+            # === 收入汇总 ===
             income_monthly = st.session_state.data_manager['income'].data.copy()
             income_monthly['交付月份'] = pd.to_datetime(income_monthly['交付日期']).dt.to_period('M')
             income_summary = income_monthly.groupby('交付月份')['纠偏后收入'].sum().reset_index()
             income_summary['月份'] = income_summary['交付月份'].astype(str)
+    
+            # === 物料成本 ===
             material_monthly = st.session_state.data_manager['income'].generate_material_cost_data()
-            if not material_monthly.empty: material_summary = material_monthly.groupby('支出月份')['物料成本'].sum().reset_index()
-            else: material_summary = pd.DataFrame(columns=['支出月份', '物料成本'])
+            if not material_monthly.empty:
+                material_summary = material_monthly.groupby('支出月份')['物料成本'].sum().reset_index()
+            else:
+                material_summary = pd.DataFrame({'支出月份': [], '物料成本': []})
+    
+            # === 人工成本 ===
             labor_monthly = st.session_state.data_manager['labor'].generate_cost_data()
-            if not labor_monthly.empty: labor_summary = labor_monthly.groupby('支出月份')['成本金额'].sum().reset_index()
-            else: labor_summary = pd.DataFrame(columns=['支出月份', '成本金额'])
+            if not labor_monthly.empty:
+                labor_summary = labor_monthly.groupby('支出月份')['成本金额'].sum().reset_index()
+            else:
+                labor_summary = pd.DataFrame({'支出月份': [], '成本金额': []})
+    
+            # === 行政费用 ===
             admin_monthly = st.session_state.data_manager['admin'].generate_cost_data()
-            if not admin_monthly.empty: admin_summary = admin_monthly.groupby('支出月份')['月度成本'].sum().reset_index()
-            else: admin_summary = pd.DataFrame(columns=['支出月份', '月度成本'])
+            if not admin_monthly.empty:
+                admin_summary = admin_monthly.groupby('支出月份')['月度成本'].sum().reset_index()
+            else:
+                admin_summary = pd.DataFrame({'支出月份': [], '月度成本': []})
+    
+            # === 偶然收入 ===
             if not st.session_state.data_manager['occasional']['occasional_income'].empty:
                 df_inc = st.session_state.data_manager['occasional']['occasional_income'].copy()
                 df_inc['月份'] = pd.to_datetime(df_inc['收入日期']).dt.to_period('M').astype(str)
@@ -1843,8 +1858,8 @@ def main():
                 occasional_income_monthly.rename(columns={'收入金额': '偶然收入'}, inplace=True)
             else:
                 occasional_income_monthly = pd.DataFrame({'月份': [], '偶然收入': []})
-            
-            # 偶然支出
+    
+            # === 偶然支出 ===
             if not st.session_state.data_manager['occasional']['occasional_expense'].empty:
                 df_exp = st.session_state.data_manager['occasional']['occasional_expense'].copy()
                 df_exp['月份'] = pd.to_datetime(df_exp['支出日期']).dt.to_period('M').astype(str)
@@ -1852,81 +1867,118 @@ def main():
                 occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'}, inplace=True)
             else:
                 occasional_expense_monthly = pd.DataFrame({'月份': [], '偶然支出': []})
+    
+            # === 收集所有月份 ===
             all_months = set()
-            if not income_summary.empty: all_months.update(income_summary['月份'])
-            if not material_summary.empty: all_months.update(material_summary['支出月份'])
-            if not labor_summary.empty: all_months.update(labor_summary['支出月份'])
-            if not admin_summary.empty: all_months.update(admin_summary['支出月份'])
-            # 偶然收入合并
-            if not occasional_income_monthly.empty and '月份' in occasional_income_monthly.columns:
-                # 如果列名是'收入金额'，重命名为'偶然收入'
-                if '收入金额' in occasional_income_monthly.columns:
-                    occasional_income_monthly = occasional_income_monthly.rename(columns={'收入金额': '偶然收入'})
-                budget_summary = budget_summary.merge(
-                    occasional_income_monthly[['月份', '偶然收入']], 
-                    on='月份', 
-                    how='left'
-                )
-            else:
-                budget_summary['偶然收入'] = 0  # ✅ 只有一个 else
-            
-            # 偶然支出
-            if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns:
-                if '支出金额' in occasional_expense_monthly.columns:
-                    occasional_expense_monthly = occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'})
-                budget_summary = budget_summary.merge(
-                    occasional_expense_monthly[['月份', '偶然支出']], 
-                    on='月份', 
-                    how='left'
-                )
-            else:
-                budget_summary['偶然支出'] = 0  # ✅ 只有一个 else
-            
-            # 统一 fillna(0) 放在最后（可选，但更安全）
-            budget_summary = budget_summary.fillna(0)
             if not income_summary.empty:
-                budget_summary = budget_summary.merge(income_summary[['月份', '纠偏后收入']], on='月份', how='left').fillna(0)
-            else: budget_summary['纠偏后收入'] = 0
+                all_months.update(income_summary['月份'])
             if not material_summary.empty:
-                budget_summary = budget_summary.merge(material_summary[['支出月份', '物料成本']], left_on='月份', right_on='支出月份', how='left').fillna(0)
-                budget_summary.drop(columns=['支出月份'], inplace=True)
-            else: budget_summary['物料成本'] = 0
+                all_months.update(material_summary['支出月份'])
             if not labor_summary.empty:
-                budget_summary = budget_summary.merge(labor_summary[['支出月份', '成本金额']], left_on='月份', right_on='支出月份', how='left').fillna(0)
-                budget_summary.drop(columns=['支出月份'], inplace=True)
-            else: budget_summary['成本金额'] = 0
+                all_months.update(labor_summary['支出月份'])
             if not admin_summary.empty:
-                budget_summary = budget_summary.merge(admin_summary[['支出月份', '月度成本']], left_on='月份', right_on='支出月份', how='left').fillna(0)
-                budget_summary.drop(columns=['支出月份'], inplace=True)
-            else: budget_summary['月度成本'] = 0
-            if '月份' in occasional_income_monthly.columns:
-                budget_summary = budget_summary.merge(occasional_income_monthly, on='月份', how='left').fillna(0)
+                all_months.update(admin_summary['支出月份'])
+            if not occasional_income_monthly.empty:
+                all_months.update(occasional_income_monthly['月份'])
+            if not occasional_expense_monthly.empty:
+                all_months.update(occasional_expense_monthly['月份'])
+    
+            months_list = sorted(list(all_months))
+            budget_summary = pd.DataFrame({'月份': months_list})
+    
+            # === 合并各项数据 ===
+            # 收入
+            if not income_summary.empty:
+                budget_summary = budget_summary.merge(
+                    income_summary[['月份', '纠偏后收入']], on='月份', how='left'
+                )
             else:
-                budget_summary['收入金额'] = 0  # 如果没有数据，补0列
-            else: budget_summary['偶然收入'] = 0
-            if '月份' in occasional_expense_monthly.columns:
-                budget_summary = budget_summary.merge(occasional_expense_monthly, on='月份', how='left').fillna(0)
+                budget_summary['纠偏后收入'] = 0
+    
+            # 物料成本
+            if not material_summary.empty:
+                budget_summary = budget_summary.merge(
+                    material_summary[['支出月份', '物料成本']],
+                    left_on='月份', right_on='支出月份', how='left'
+                ).drop(columns=['支出月份'])
             else:
-                budget_summary['支出金额'] = 0  # 如果没有数据，补0列
-            else: budget_summary['偶然支出'] = 0
+                budget_summary['物料成本'] = 0
+    
+            # 人工成本
+            if not labor_summary.empty:
+                budget_summary = budget_summary.merge(
+                    labor_summary[['支出月份', '成本金额']],
+                    left_on='月份', right_on='支出月份', how='left'
+                ).drop(columns=['支出月份'])
+            else:
+                budget_summary['成本金额'] = 0
+    
+            # 行政费用
+            if not admin_summary.empty:
+                budget_summary = budget_summary.merge(
+                    admin_summary[['支出月份', '月度成本']],
+                    left_on='月份', right_on='支出月份', how='left'
+                ).drop(columns=['支出月份'])
+            else:
+                budget_summary['月度成本'] = 0
+    
+            # 偶然收入
+            if not occasional_income_monthly.empty and '偶然收入' in occasional_income_monthly.columns:
+                budget_summary = budget_summary.merge(
+                    occasional_income_monthly[['月份', '偶然收入']], on='月份', how='left'
+                )
+            else:
+                budget_summary['偶然收入'] = 0
+    
+            # 偶然支出
+            if not occasional_expense_monthly.empty and '偶然支出' in occasional_expense_monthly.columns:
+                budget_summary = budget_summary.merge(
+                    occasional_expense_monthly[['月份', '偶然支出']], on='月份', how='left'
+                )
+            else:
+                budget_summary['偶然支出'] = 0
+    
+            # 统一填充缺失值
+            budget_summary = budget_summary.fillna(0)
+    
+            # === 计算衍生指标 ===
             budget_summary['总收入'] = budget_summary['纠偏后收入'] + budget_summary['偶然收入']
-            budget_summary['总支出'] = budget_summary['物料成本'] + budget_summary['成本金额'] + budget_summary['月度成本'] + budget_summary['偶然支出']
+            budget_summary['总支出'] = (
+                budget_summary['物料成本'] +
+                budget_summary['成本金额'] +
+                budget_summary['月度成本'] +
+                budget_summary['偶然支出']
+            )
             budget_summary['毛利润'] = budget_summary['总收入'] - budget_summary['总支出']
-            budget_summary['毛利率'] = np.where(budget_summary['总收入'] > 0, budget_summary['毛利润'] / budget_summary['总收入'] * 100, 0)
+            budget_summary['毛利率'] = np.where(
+                budget_summary['总收入'] > 0,
+                budget_summary['毛利润'] / budget_summary['总收入'] * 100,
+                0
+            )
+    
+            # === 排序与格式化月份 ===
             budget_summary['月份_dt'] = pd.to_datetime(budget_summary['月份'])
-            budget_summary = budget_summary.sort_values('月份_dt')
-            budget_summary = budget_summary.drop('月份_dt', axis=1)
-            budget_summary['月份_中文'] = pd.to_datetime(budget_summary['月份']).apply(lambda x: f"{x.year}年{x.month}月")
-            budget_summary = budget_summary.rename(columns={'月份': '月份_英文'})
-            budget_summary = budget_summary.rename(columns={'月份_中文': '月份'})
+            budget_summary = budget_summary.sort_values('月份_dt').drop(columns=['月份_dt'])
+            budget_summary['月份_中文'] = pd.to_datetime(budget_summary['月份']).apply(
+                lambda x: f"{x.year}年{x.month}月"
+            )
+            budget_summary = budget_summary.rename(columns={'月份': '月份_英文', '月份_中文': '月份'})
+    
+            # === 显示表格 ===
             st.subheader("月度预算汇总")
             budget_display = budget_summary.copy()
             budget_display = budget_display.rename(columns={'月份': '月份_中文'})
-            st.dataframe(budget_display.style.format({
-                '纠偏后收入': '{:.2f}', '物料成本': '{:.2f}', '成本金额': '{:.2f}', '月度成本': '{:.2f}',
-                '偶然收入': '{:.2f}', '偶然支出': '{:.2f}', '总收入': '{:.2f}', '总支出': '{:.2f}',
-                '毛利润': '{:.2f}', '毛利率': '{:.2f}%'
-            }), use_container_width=True)
+            st.dataframe(
+                budget_display.style.format({
+                    '纠偏后收入': '{:.2f}', '物料成本': '{:.2f}', '成本金额': '{:.2f}',
+                    '月度成本': '{:.2f}', '偶然收入': '{:.2f}', '偶然支出': '{:.2f}',
+                    '总收入': '{:.2f}', '总支出': '{:.2f}', '毛利润': '{:.2f}',
+                    '毛利率': '{:.2f}%'
+                }),
+                use_container_width=True
+            )
+    
+            # === 汇总统计 ===
             total_income = budget_summary['总收入'].sum()
             total_material = budget_summary['物料成本'].sum()
             total_labor = budget_summary['成本金额'].sum()
@@ -1936,6 +1988,7 @@ def main():
             total_expense = budget_summary['总支出'].sum()
             total_profit = budget_summary['毛利润'].sum()
             avg_margin = (total_profit / total_income * 100) if total_income > 0 else 0
+    
             st.subheader("预算汇总统计")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -1951,6 +2004,8 @@ def main():
                 st.metric("偶然支出", f"{total_occasional_expense:.2f} 万元")
                 st.metric("毛利润", f"{total_profit:.2f} 万元")
                 st.metric("平均毛利率", f"{avg_margin:.2f}%")
+    
+            # === 可视化 ===
             st.subheader("全面预算可视化")
             fig_budget = go.Figure()
             fig_budget.add_trace(go.Bar(x=budget_summary['月份'], y=budget_summary['总收入'], name='总收入', marker_color='#1a2a6c'))
@@ -1958,13 +2013,37 @@ def main():
             fig_budget.add_trace(go.Bar(x=budget_summary['月份'], y=budget_summary['成本金额'], name='人工成本', marker_color='#4ecdc4'))
             fig_budget.add_trace(go.Bar(x=budget_summary['月份'], y=budget_summary['月度成本'], name='行政费用', marker_color='#f7b731'))
             fig_budget.add_trace(go.Bar(x=budget_summary['月份'], y=budget_summary['偶然支出'], name='偶然支出', marker_color='#ff9f1c'))
-            fig_budget.update_layout(title='月度收入与支出对比', xaxis_title='月份', yaxis_title='金额 (万元)', barmode='group', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            fig_budget.update_layout(
+                title='月度收入与支出对比',
+                xaxis_title='月份',
+                yaxis_title='金额 (万元)',
+                barmode='group',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_budget, use_container_width=True)
+    
             fig_margin = go.Figure()
-            fig_margin.add_trace(go.Scatter(x=budget_summary['月份'], y=budget_summary['毛利率'], mode='lines+markers', name='毛利率', line=dict(color='#1a2a6c', width=3), marker=dict(size=8)))
-            fig_margin.update_layout(title='月度毛利率趋势', xaxis_title='月份', yaxis_title='毛利率 (%)', yaxis_range=[-100, 100], plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+            fig_margin.add_trace(go.Scatter(
+                x=budget_summary['月份'],
+                y=budget_summary['毛利率'],
+                mode='lines+markers',
+                name='毛利率',
+                line=dict(color='#1a2a6c', width=3),
+                marker=dict(size=8)
+            ))
+            fig_margin.update_layout(
+                title='月度毛利率趋势',
+                xaxis_title='月份',
+                yaxis_title='毛利率 (%)',
+                yaxis_range=[-100, 100],
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_margin, use_container_width=True)
-        else: st.info("暂无收入数据。请先添加收入预算项目以生成全面预算汇总表。")
+    
+        else:
+            st.info("暂无收入数据。请先添加收入预算项目以生成全面预算汇总表。")
 
     st.header("❓ 模型说明")
     with st.expander("点击展开查看详细说明"):
@@ -2060,6 +2139,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
