@@ -1862,17 +1862,15 @@ def main():
                 # 如果列名是'收入金额'，重命名为'偶然收入'
                 if '收入金额' in occasional_income_monthly.columns:
                     occasional_income_monthly = occasional_income_monthly.rename(columns={'收入金额': '偶然收入'})
-                # 确保只取需要的列
                 budget_summary = budget_summary.merge(
                     occasional_income_monthly[['月份', '偶然收入']], 
                     on='月份', 
                     how='left'
                 )
             else:
-                # 如果没有数据，直接添加0列
-                budget_summary['偶然收入'] = 0
+                budget_summary['偶然收入'] = 0  # ✅ 只有一个 else
             
-            # 偶然支出合并
+            # 偶然支出
             if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns:
                 if '支出金额' in occasional_expense_monthly.columns:
                     occasional_expense_monthly = occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'})
@@ -1882,9 +1880,9 @@ def main():
                     how='left'
                 )
             else:
-                budget_summary['偶然支出'] = 0
+                budget_summary['偶然支出'] = 0  # ✅ 只有一个 else
             
-            # 最后统一 fillna(0)
+            # 统一 fillna(0) 放在最后（可选，但更安全）
             budget_summary = budget_summary.fillna(0)
             if not income_summary.empty:
                 budget_summary = budget_summary.merge(income_summary[['月份', '纠偏后收入']], on='月份', how='left').fillna(0)
@@ -2062,6 +2060,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
