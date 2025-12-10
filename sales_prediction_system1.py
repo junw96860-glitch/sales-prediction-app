@@ -1176,20 +1176,18 @@ def main():
             if '删除' in edited_df.columns:
                 rows_to_delete = edited_df[edited_df['删除'] == True]
                 if not rows_to_delete.empty:
-                    # 立即执行删除,不显示确认按钮
+                    # 显示即将删除的项目信息
+                    st.warning(f"⚠️ 检测到 {len(rows_to_delete)} 个项目被标记为删除,正在处理...")
+                    
+                    # 立即执行删除
                     ids_to_delete = rows_to_delete['ID'].tolist()
                     income_data = st.session_state.data_manager['income'].data
-                    
-                    # 执行删除
-                    original_count = len(income_data)
                     income_data = income_data[~income_data['ID'].isin(ids_to_delete)]
-                    deleted_count = original_count - len(income_data)
                     
-                    if deleted_count > 0:
-                        st.session_state.data_manager['income'].data = income_data.reset_index(drop=True)
-                        DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
-                        st.success(f"✅ 已删除 {deleted_count} 个项目!")
-                        st.rerun()
+                    st.session_state.data_manager['income'].data = income_data.reset_index(drop=True)
+                    DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
+                    st.success(f"✅ 已成功删除 {len(ids_to_delete)} 个项目!")
+                    st.rerun()
 
             # 处理编辑（排除删除列）
             edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
@@ -2225,6 +2223,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
