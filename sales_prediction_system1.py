@@ -893,9 +893,18 @@ def main():
         
         st.markdown("---")
         st.subheader("💰 现金余额设置")
+        # 使用session state来保存现金余额
+        if 'current_cash_balance' not in st.session_state:
+            st.session_state.current_cash_balance = 0.0
+        
+        # 显示当前现金余额
         st.session_state.current_cash_balance = st.number_input(
             "当前现金余额 (万元)", min_value=0.0, value=st.session_state.current_cash_balance, step=1.0, help="当前可用现金余额"
         )
+        
+        # 添加保存按钮
+        if st.button("💾 保存现金余额", type="secondary"):
+            st.success(f"现金余额已保存为: {st.session_state.current_cash_balance:.2f} 万元")
         
         st.markdown("---")
         st.subheader("💾 数据管理")
@@ -1987,6 +1996,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
