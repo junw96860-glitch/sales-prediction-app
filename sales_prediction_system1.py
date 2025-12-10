@@ -817,8 +817,8 @@ def main():
             'labor': LaborCostManager(DataManager.load_data_from_json('labor_budget.json')),
             'admin': AdminCostManager(DataManager.load_data_from_json('admin_budget.json')),
             'occasional': {
-                'occasional_income': pd.DataFrame(),
-                'occasional_expense': pd.DataFrame()
+                'occasional_income': DataManager.load_data_from_json('occasional_income.json'),  # 修改这里
+                'occasional_expense': DataManager.load_data_from_json('occasional_expense.json')  # 修改这里
             }
         }
 
@@ -1987,6 +1987,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
