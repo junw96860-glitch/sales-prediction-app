@@ -1046,6 +1046,9 @@ def main():
                 '首付款比例', '次付款比例', '质保金比例', '业务线'
             ]].copy()
             
+            # 添加删除列
+            display_df['删除'] = False
+            
             st.subheader("项目信息编辑")
             edited_df = st.data_editor(
                 display_df.style.format({
@@ -1057,9 +1060,41 @@ def main():
                     "纠偏后收入": st.column_config.NumberColumn("纠偏后收入", help="直接输入调整后的收入金额", min_value=0.0, step=0.01, default=0.0),
                     "首付款比例": st.column_config.NumberColumn("首付款比例", help="首付款占总收入的百分比", min_value=0, max_value=100, step=1, default=50),
                     "次付款比例": st.column_config.NumberColumn("次付款比例", help="次付款占总收入的百分比", min_value=0, max_value=100, step=1, default=40),
-                    "质保金比例": st.column_config.NumberColumn("质保金比例", help="质保金占总收入的百分比", min_value=0, max_value=100, step=1, default=10)
+                    "质保金比例": st.column_config.NumberColumn("质保金比例", help="质保金占总收入的百分比", min_value=0, max_value=100, step=1, default=10),
+                    "删除": st.column_config.CheckboxColumn("删除", default=False)
                 }
             )
+            
+            # 处理删除操作
+            if '删除' in edited_df.columns:
+                rows_to_delete = edited_df[edited_df['删除'] == True]
+                if not rows_to_delete.empty:
+                    if st.button(f"🗑️ 删除 {len(rows_to_delete)} 个选中的项目", type="secondary"):
+                        # 从原始数据中删除选中的行
+                        original_indices = filtered_df.index[edited_df['删除'] == True].tolist()
+                        st.session_state.data_manager['income'].data = st.session_state.data_manager['income'].data.drop(original_indices).reset_index(drop=True)
+                        DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
+                        st.success(f"已删除 {len(rows_to_delete)} 个项目！")
+                        st.rerun()  # 刷新页面
+            
+            # 处理编辑操作（排除删除列）
+            edited_df_filtered = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
+            if not edited_df_filtered.equals(display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df):
+                total_ratios = edited_df_filtered['首付款比例'] + edited_df_filtered['次付款比例'] + edited_df_filtered['质保金比例']
+                invalid_rows = edited_df_filtered[total_ratios != 100]
+                if not invalid_rows.empty:
+                    st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
+                
+                # 更新原始数据
+                for idx in edited_df_filtered.index:
+                    original_idx = filtered_df.index[idx]  # 获取原始数据的索引
+                    st.session_state.data_manager['income'].data.loc[original_idx, '纠偏后收入'] = round(edited_df_filtered.loc[idx, '纠偏后收入'], 2)
+                    st.session_state.data_manager['income'].data.loc[original_idx, '首付款比例'] = edited_df_filtered.loc[idx, '首付款比例']
+                    st.session_state.data_manager['income'].data.loc[original_idx, '次付款比例'] = edited_df_filtered.loc[idx, '次付款比例']
+                    st.session_state.data_manager['income'].data.loc[original_idx, '质保金比例'] = edited_df_filtered.loc[idx, '质保金比例']
+                
+                DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
+                st.success("项目信息已更新并保存！")
             
             if not edited_df.equals(display_df):
                 total_ratios = edited_df['首付款比例'] + edited_df['次付款比例'] + edited_df['质保金比例']
@@ -1952,3 +1987,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
