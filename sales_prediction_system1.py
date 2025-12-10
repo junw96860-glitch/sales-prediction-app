@@ -1176,20 +1176,20 @@ def main():
             if '删除' in edited_df.columns:
                 rows_to_delete = edited_df[edited_df['删除'] == True]
                 if not rows_to_delete.empty:
-                    # 显示即将删除的项目
-                    st.warning(f"⚠️ 以下 {len(rows_to_delete)} 个项目已标记为删除:")
-                    st.dataframe(rows_to_delete[['项目名称', '交付月份', '合同金额', '业务线']], use_container_width=True)
+                    # 立即执行删除,不显示确认按钮
+                    ids_to_delete = rows_to_delete['ID'].tolist()
+                    income_data = st.session_state.data_manager['income'].data
                     
-                    col_confirm, col_cancel = st.columns([1, 4])
-                    with col_confirm:
-                        if st.button("🗑️ 确认删除", type="primary", key="confirm_delete"):
-                            ids_to_delete = rows_to_delete['ID'].tolist()
-                            income_data = st.session_state.data_manager['income'].data
-                            income_data = income_data[~income_data['ID'].isin(ids_to_delete)]
-                            st.session_state.data_manager['income'].data = income_data.reset_index(drop=True)
-                            DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
-                            st.success(f"已删除 {len(ids_to_delete)} 个项目!")
-                            st.rerun()
+                    # 执行删除
+                    original_count = len(income_data)
+                    income_data = income_data[~income_data['ID'].isin(ids_to_delete)]
+                    deleted_count = original_count - len(income_data)
+                    
+                    if deleted_count > 0:
+                        st.session_state.data_manager['income'].data = income_data.reset_index(drop=True)
+                        DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
+                        st.success(f"✅ 已删除 {deleted_count} 个项目!")
+                        st.rerun()
 
             # 处理编辑（排除删除列）
             edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
@@ -2225,6 +2225,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
