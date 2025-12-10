@@ -1190,6 +1190,8 @@ def main():
                         st.session_state.data_manager['income'].data = full_data[~mask].reset_index(drop=True)
                         DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                         st.success(f"已删除 {len(rows_to_delete)} 个项目！")
+                        if "filtered_project_editor" in st.session_state:
+                            del st.session_state["filtered_project_editor"]
                         st.rerun()
     
             # 处理编辑（排除删除列）
@@ -2226,6 +2228,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
