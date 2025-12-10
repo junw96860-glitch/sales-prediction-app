@@ -1836,19 +1836,47 @@ def main():
             admin_monthly = st.session_state.data_manager['admin'].generate_cost_data()
             if not admin_monthly.empty: admin_summary = admin_monthly.groupby('支出月份')['月度成本'].sum().reset_index()
             else: admin_summary = pd.DataFrame(columns=['支出月份', '月度成本'])
-            occasional_income_monthly = st.session_state.data_manager['occasional']['occasional_income'].groupby(st.session_state.data_manager['occasional']['occasional_income']['收入日期'].dt.to_period('M').astype(str))['收入金额'].sum().reset_index() if not st.session_state.data_manager['occasional']['occasional_income'].empty else pd.DataFrame(columns=['月份', '偶然收入'])
-            occasional_expense_monthly = st.session_state.data_manager['occasional']['occasional_expense'].groupby(st.session_state.data_manager['occasional']['occasional_expense']['支出日期'].dt.to_period('M').astype(str))['支出金额'].sum().reset_index() if not st.session_state.data_manager['occasional']['occasional_expense'].empty else pd.DataFrame(columns=['月份', '偶然支出'])
+            if not st.session_state.data_manager['occasional']['occasional_income'].empty:
+                df_inc = st.session_state.data_manager['occasional']['occasional_income'].copy()
+                df_inc['月份'] = pd.to_datetime(df_inc['收入日期']).dt.to_period('M').astype(str)
+                occasional_income_monthly = df_inc.groupby('月份')['收入金额'].sum().reset_index()
+                occasional_income_monthly.rename(columns={'收入金额': '偶然收入'}, inplace=True)
+            else:
+                occasional_income_monthly = pd.DataFrame({'月份': [], '偶然收入': []})
+            
+            # 偶然支出
+            if not st.session_state.data_manager['occasional']['occasional_expense'].empty:
+                df_exp = st.session_state.data_manager['occasional']['occasional_expense'].copy()
+                df_exp['月份'] = pd.to_datetime(df_exp['支出日期']).dt.to_period('M').astype(str)
+                occasional_expense_monthly = df_exp.groupby('月份')['支出金额'].sum().reset_index()
+                occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'}, inplace=True)
+            else:
+                occasional_expense_monthly = pd.DataFrame({'月份': [], '偶然支出': []})
             all_months = set()
             if not income_summary.empty: all_months.update(income_summary['月份'])
             if not material_summary.empty: all_months.update(material_summary['支出月份'])
             if not labor_summary.empty: all_months.update(labor_summary['支出月份'])
             if not admin_summary.empty: all_months.update(admin_summary['支出月份'])
-            if not occasional_income_monthly.empty and '月份' in occasional_income_monthly.columns: 
-                all_months.update(occasional_income_monthly['月份'])
-            if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns: 
-                all_months.update(occasional_expense_monthly['月份'])
-            months_list = sorted(list(all_months))
-            budget_summary = pd.DataFrame({'月份': months_list})
+            # === 修复：偶然收入 ===
+            if not occasional_income_monthly.empty and '月份' in occasional_income_monthly.columns:
+                # 确保列名为'偶然收入'
+                if '收入金额' in occasional_income_monthly.columns:
+                    occasional_income_monthly = occasional_income_monthly.rename(columns={'收入金额': '偶然收入'})
+                budget_summary = budget_summary.merge(occasional_income_monthly[['月份', '偶然收入']], on='月份', how='left')
+            else:
+                budget_summary['偶然收入'] = 0
+            
+            # === 修复：偶然支出 ===
+            if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns:
+                # 确保列名为'偶然支出'
+                if '支出金额' in occasional_expense_monthly.columns:
+                    occasional_expense_monthly = occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'})
+                budget_summary = budget_summary.merge(occasional_expense_monthly[['月份', '偶然支出']], on='月份', how='left')
+            else:
+                budget_summary['偶然支出'] = 0
+            
+            # 填充 NaN 为 0（统一处理）
+            budget_summary = budget_summary.fillna(0)
             if not income_summary.empty:
                 budget_summary = budget_summary.merge(income_summary[['月份', '纠偏后收入']], on='月份', how='left').fillna(0)
             else: budget_summary['纠偏后收入'] = 0
@@ -2025,6 +2053,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
