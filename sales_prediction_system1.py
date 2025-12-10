@@ -1843,8 +1843,10 @@ def main():
             if not material_summary.empty: all_months.update(material_summary['支出月份'])
             if not labor_summary.empty: all_months.update(labor_summary['支出月份'])
             if not admin_summary.empty: all_months.update(admin_summary['支出月份'])
-            if not occasional_income_monthly.empty: all_months.update(occasional_income_monthly['月份'])
-            if not occasional_expense_monthly.empty: all_months.update(occasional_expense_monthly['月份'])
+            if not occasional_income_monthly.empty and '月份' in occasional_income_monthly.columns: 
+                all_months.update(occasional_income_monthly['月份'])
+            if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns: 
+                all_months.update(occasional_expense_monthly['月份'])
             months_list = sorted(list(all_months))
             budget_summary = pd.DataFrame({'月份': months_list})
             if not income_summary.empty:
@@ -2019,6 +2021,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
