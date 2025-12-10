@@ -1857,25 +1857,34 @@ def main():
             if not material_summary.empty: all_months.update(material_summary['支出月份'])
             if not labor_summary.empty: all_months.update(labor_summary['支出月份'])
             if not admin_summary.empty: all_months.update(admin_summary['支出月份'])
-            # === 修复：偶然收入 ===
+            # 偶然收入合并
             if not occasional_income_monthly.empty and '月份' in occasional_income_monthly.columns:
-                # 确保列名为'偶然收入'
+                # 如果列名是'收入金额'，重命名为'偶然收入'
                 if '收入金额' in occasional_income_monthly.columns:
                     occasional_income_monthly = occasional_income_monthly.rename(columns={'收入金额': '偶然收入'})
-                budget_summary = budget_summary.merge(occasional_income_monthly[['月份', '偶然收入']], on='月份', how='left')
+                # 确保只取需要的列
+                budget_summary = budget_summary.merge(
+                    occasional_income_monthly[['月份', '偶然收入']], 
+                    on='月份', 
+                    how='left'
+                )
             else:
+                # 如果没有数据，直接添加0列
                 budget_summary['偶然收入'] = 0
             
-            # === 修复：偶然支出 ===
+            # 偶然支出合并
             if not occasional_expense_monthly.empty and '月份' in occasional_expense_monthly.columns:
-                # 确保列名为'偶然支出'
                 if '支出金额' in occasional_expense_monthly.columns:
                     occasional_expense_monthly = occasional_expense_monthly.rename(columns={'支出金额': '偶然支出'})
-                budget_summary = budget_summary.merge(occasional_expense_monthly[['月份', '偶然支出']], on='月份', how='left')
+                budget_summary = budget_summary.merge(
+                    occasional_expense_monthly[['月份', '偶然支出']], 
+                    on='月份', 
+                    how='left'
+                )
             else:
                 budget_summary['偶然支出'] = 0
             
-            # 填充 NaN 为 0（统一处理）
+            # 最后统一 fillna(0)
             budget_summary = budget_summary.fillna(0)
             if not income_summary.empty:
                 budget_summary = budget_summary.merge(income_summary[['月份', '纠偏后收入']], on='月份', how='left').fillna(0)
@@ -2053,6 +2062,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
