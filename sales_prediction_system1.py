@@ -1978,7 +1978,7 @@ def main():
         """)
 
     st.markdown("---")
-    st.markdown("<div style='text-align: center; color: #666666; padding: 20px;'>全面预算管理系统 © 2025 | 财务分析与战略规划中心 · 数据科学团队 | 当前版本: 3.5</div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; color: #666666; padding: 20px;'>全面预算管理系统 © 2025 | 咸数科技 · 财务小王 | 当前版本: 3.5</div>", unsafe_allow_html=True)
 
     if 'first_run' not in st.session_state:
         st.session_state.first_run = True
@@ -1987,6 +1987,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
