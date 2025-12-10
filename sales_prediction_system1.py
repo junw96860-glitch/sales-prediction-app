@@ -821,6 +821,7 @@ def main():
                 'occasional_expense': DataManager.load_data_from_json('occasional_expense.json')  # 修改这里
             }
         }
+    
 
     if 'material_ratios' not in st.session_state:
         st.session_state.material_ratios = {
@@ -831,15 +832,14 @@ def main():
         st.session_state.selected_page = "收入预测"
 
     if 'current_cash_balance' not in st.session_state:
-        # 尝试从文件加载现金余额
         cash_balance_file = 'cash_balance.json'
         if os.path.exists(cash_balance_file):
             try:
                 with open(cash_balance_file, 'r', encoding='utf-8') as f:
                     cash_data = json.load(f)
-                    st.session_state.current_cash_balance = cash_data.get('balance', 0.0)
-            except:
-                st.session_state.current_cash_balance = 0.0
+                    st.session_state.current_cash_balance = float(cash_data.get('balance', 0.0))
+            except Exception as e:
+                st.session_state.current_cash_balance = 0.0  # 加载失败则默认为0
         else:
             st.session_state.current_cash_balance = 0.0
 
@@ -904,29 +904,30 @@ def main():
         st.markdown("---")
         st.subheader("💰 现金余额设置")
         
-        # 确保 session state 中有初始值（防止第一次运行时报错）
-        if 'current_cash_balalance' not in st.session_state:
-            st.session_state.current_cash_balance = 0.0
-        
-        st.session_state.current_cash_balance = st.number_input(
-            "当前现金余额 (万元)", 
-            min_value=0.0, 
-            value=st.session_state.current_cash_balance, 
-            step=1.0, 
+        # 使用 session_state 中的值作为默认值
+        current_balance = st.number_input(
+            "当前现金余额 (万元)",
+            min_value=0.0,
+            value=float(st.session_state.current_cash_balance),
+            step=1.0,
             help="当前可用现金余额",
-            key="cash_balance_input"  # 建议也给输入框加 key
+            key="cash_balance_input"  # 建议加 key 避免警告
         )
         
-        # 只保留一个保存按钮，并添加唯一 key
+        # 更新 session state（用户输入时自动同步）
+        st.session_state.current_cash_balance = current_balance
+        
+        # 保存按钮（带唯一 key）
         if st.button("💾 保存现金余额", type="secondary", key="save_cash_balance"):
             cash_balance_file = 'cash_balance.json'
             cash_data = {'balance': st.session_state.current_cash_balance}
             try:
                 with open(cash_balance_file, 'w', encoding='utf-8') as f:
                     json.dump(cash_data, f, ensure_ascii=False, indent=2)
-                st.success(f"现金余额已保存为: {st.session_state.current_cash_balance:.2f} 万元")
+                st.success(f"✅ 现金余额已保存为: {st.session_state.current_cash_balance:.2f} 万元")
             except Exception as e:
-                st.error(f"保存现金余额失败: {str(e)}")
+                st.error(f"❌ 保存失败: {str(e)}")
+
         
         st.markdown("---")
         st.subheader("💾 数据管理")
@@ -2018,6 +2019,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
