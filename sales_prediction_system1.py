@@ -1178,16 +1178,21 @@ def main():
     
             # 处理编辑（排除删除列）
             edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
-            original_no_del = display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df
+            original_no_del = display_df.drop(columns=['删除']) if 'delete' in display_df.columns else display_df
+    
+            # 注意：display_df 是 filtered_df 的子集，而 filtered_df 保留了 full_data 的原始索引
+            # 所以我们可以通过 filtered_df.index 获取每行在 full_data 中的真实位置
+    
             if not edited_no_del.equals(original_no_del):
                 total_ratios = edited_no_del['首付款比例'] + edited_no_del['次付款比例'] + edited_no_del['质保金比例']
                 invalid_rows = edited_no_del[total_ratios != 100]
                 if not invalid_rows.empty:
                     st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
     
-                # 更新原始数据
+                # ✅ 关键修复：遍历 edited_no_del 的每一行，通过 filtered_df.index[local_idx] 获取原始索引
                 for local_idx in edited_no_del.index:
-                    global_idx = filtered_df.index[local_idx]  # 映射回原始DataFrame索引
+                    global_idx = filtered_df.index[local_idx]  # 这是该行在 full_data 中的真实索引
+                    # 更新原始数据
                     st.session_state.data_manager['income'].data.loc[global_idx, '纠偏后收入'] = round(edited_no_del.loc[local_idx, '纠偏后收入'], 2)
                     st.session_state.data_manager['income'].data.loc[global_idx, '首付款比例'] = edited_no_del.loc[local_idx, '首付款比例']
                     st.session_state.data_manager['income'].data.loc[global_idx, '次付款比例'] = edited_no_del.loc[local_idx, '次付款比例']
@@ -2205,6 +2210,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
