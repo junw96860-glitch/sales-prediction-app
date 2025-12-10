@@ -1147,7 +1147,7 @@ def main():
                     ]
                     display_df = filtered_df[display_cols].copy()
                     display_df['删除'] = False
-        
+                
                     st.subheader("项目信息编辑")
                     edited_df = st.data_editor(
                         display_df,
@@ -1171,7 +1171,7 @@ def main():
                         },
                         key="filtered_project_editor"
                     )
-        
+                
                     # 处理删除
                     if '删除' in edited_df.columns:
                         rows_to_delete = edited_df[edited_df['删除'] == True]
@@ -1184,7 +1184,7 @@ def main():
                                 DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                                 st.success(f"已删除 {len(rows_to_delete)} 个项目！")
                                 st.rerun()
-        
+                
                     # 处理编辑（排除删除列）
                     edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
                     original_no_del = display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df
@@ -1193,7 +1193,7 @@ def main():
                         invalid_rows = edited_no_del[total_ratios != 100]
                         if not invalid_rows.empty:
                             st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
-        
+                
                         # 核心修复：通过 ID 更新原始数据
                         income_data = st.session_state.data_manager['income'].data
                         for _, row in edited_no_del.iterrows():
@@ -1205,10 +1205,11 @@ def main():
                                 income_data.loc[idx, '首付款比例'] = row['首付款比例']
                                 income_data.loc[idx, '次付款比例'] = row['次付款比例']
                                 income_data.loc[idx, '质保金比例'] = row['质保金比例']
-        
+                
                         st.session_state.data_manager['income'].data = income_data
                         DataManager.save_data_to_json(income_data, 'income_budget.json')
                         st.success("项目信息已更新并保存！")
+
         
                     # 显示筛选后统计
                     total_revenue_filtered = filtered_df['预期收入'].sum()
@@ -2219,6 +2220,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
