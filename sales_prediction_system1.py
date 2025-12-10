@@ -903,13 +903,22 @@ def main():
         
         st.markdown("---")
         st.subheader("💰 现金余额设置")
+        
+        # 确保 session state 中有初始值（防止第一次运行时报错）
+        if 'current_cash_balalance' not in st.session_state:
+            st.session_state.current_cash_balance = 0.0
+        
         st.session_state.current_cash_balance = st.number_input(
-            "当前现金余额 (万元)", min_value=0.0, value=st.session_state.current_cash_balance, step=1.0, help="当前可用现金余额"
+            "当前现金余额 (万元)", 
+            min_value=0.0, 
+            value=st.session_state.current_cash_balance, 
+            step=1.0, 
+            help="当前可用现金余额",
+            key="cash_balance_input"  # 建议也给输入框加 key
         )
         
-        # 添加保存按钮
-        if st.button("💾 保存现金余额", type="secondary"):
-            # 保存现金余额到文件
+        # 只保留一个保存按钮，并添加唯一 key
+        if st.button("💾 保存现金余额", type="secondary", key="save_cash_balance"):
             cash_balance_file = 'cash_balance.json'
             cash_data = {'balance': st.session_state.current_cash_balance}
             try:
@@ -918,10 +927,6 @@ def main():
                 st.success(f"现金余额已保存为: {st.session_state.current_cash_balance:.2f} 万元")
             except Exception as e:
                 st.error(f"保存现金余额失败: {str(e)}")
-        
-        # 添加保存按钮
-        if st.button("💾 保存现金余额", type="secondary"):
-            st.success(f"现金余额已保存为: {st.session_state.current_cash_balance:.2f} 万元")
         
         st.markdown("---")
         st.subheader("💾 数据管理")
@@ -2013,6 +2018,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
