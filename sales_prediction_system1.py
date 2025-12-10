@@ -1255,6 +1255,165 @@ def main():
             total_adjusted_revenue_all = full_data['纠偏后收入'].sum()
             total_contract_all = full_data['合同金额'].sum()
 
+            # === 可视化分析区域 ===
+            st.header("📈 收入预测可视化分析")
+            
+            # 第一行：业务线收入分布饼图和月份收入趋势图
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 业务线收入分布饼图
+                business_revenue = full_data.groupby('业务线')['纠偏后收入'].sum().reset_index()
+                fig_pie = px.pie(business_revenue, values='纠偏后收入', names='业务线', 
+                                title='各业务线收入分布', 
+                                color_discrete_sequence=px.colors.sequential.Plasma_r)
+                fig_pie.update_traces(textposition='inside', textinfo='percent+label+value')
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            with col2:
+                # 月份收入趋势图
+                monthly_revenue = full_data.groupby('交付月份')['纠偏后收入'].sum().reset_index()
+                monthly_revenue = monthly_revenue.sort_values('交付月份')
+                fig_line = px.line(monthly_revenue, x='交付月份', y='纠偏后收入', 
+                                  title='按月份收入趋势', 
+                                  markers=True,
+                                  labels={'纠偏后收入': '收入 (万元)', '交付月份': '月份'})
+                fig_line.update_layout(yaxis_title='收入 (万元)')
+                st.plotly_chart(fig_line, use_container_width=True)
+
+            # 第二行：收入对比柱状图和合同金额vs收入散点图
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                # 预期收入 vs 纠偏后收入对比柱状图
+                comparison_data = full_data[['项目名称', '预期收入', '纠偏后收入']].melt(
+                    id_vars=['项目名称'], var_name='类型', value_name='金额')
+                fig_bar = px.bar(comparison_data, x='项目名称', y='金额', color='类型',
+                                title='预期收入 vs 纠偏后收入对比',
+                                barmode='group',
+                                labels={'金额': '收入 (万元)', '项目名称': '项目'})
+                fig_bar.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_bar, use_container_width=True)
+            
+            with col4:
+                # 合同金额 vs 纠偏后收入散点图
+                fig_scatter = px.scatter(full_data, x='合同金额', y='纠偏后收入', 
+                                       color='业务线', size='合同金额',
+                                       hover_data=['项目名称'],
+                                       title='合同金额与纠偏后收入关系',
+                                       labels={'合同金额': '合同金额 (万元)', '纠偏后收入': '纠偏后收入 (万元)'})
+                st.plotly_chart(fig_scatter, use_container_width=True)
+
+            # 第三行：业务线收入对比和时间衰减影响分析
+            col5, col6 = st.columns(2)
+            
+            with col5:
+                # 各业务线收入对比箱线图
+                fig_box = px.box(full_data, x='业务线', y='纠偏后收入',
+                               title='各业务线收入分布箱线图',
+                               labels={'纠偏后收入': '收入 (万元)', '业务线': '业务线'})
+                st.plotly_chart(fig_box, use_container_width=True)
+            
+            with col6:
+                # 时间衰减因子影响分析
+                fig_time_decay = px.scatter(full_data, x='月份数', y='时间衰减因子',
+                                          color='业务线', size='纠偏后收入',
+                                          hover_data=['项目名称'],
+                                          title='时间衰减因子随时间变化趋势',
+                                          labels={'月份数': '月份数', '时间衰减因子': '时间衰减因子'})
+                st.plotly_chart(fig_time_decay, use_container_width=True)
+
+            # 第四行：详细分析表格和项目数量统计
+            col7, col8 = st.columns(2)
+            
+            with col7:
+                # 各业务线统计摘要表
+                summary_stats = full_data.groupby('业务线').agg({
+                    '纠偏后收入': ['count', 'sum', 'mean', 'max', 'min'],
+                    '合同金额': ['sum', 'mean'],
+                    '时间衰减因子': 'mean'
+                }).round(2)
+                summary_stats.columns = ['项目数', '总收入', '平均收入', '最高收入', '最低收入', '合同总额', '平均合同额', '平均时间衰减']
+                summary_stats = summary_stats.reset_index()
+                st.subheader("业务线统计摘要")
+                st.dataframe(summary_stats, use_container_width=True)
+            
+            with col8:
+                # 项目数量和收入按月份统计
+                monthly_summary = full_data.groupby('交付月份').agg({
+                    '项目名称': 'count',
+                    '纠偏后收入': 'sum',
+                    '合同金额': 'sum'
+                }).rename(columns={'项目名称': '项目数量', '纠偏后收入': '月收入', '合同金额': '月合同额'})
+                monthly_summary = monthly_summary.reset_index()
+                monthly_summary = monthly_summary.sort_values('交付月份')
+                
+                fig_monthly_summary = go.Figure()
+                fig_monthly_summary.add_trace(go.Bar(x=monthly_summary['交付月份'], y=monthly_summary['项目数量'],
+                                                   name='项目数量', yaxis='y'))
+                fig_monthly_summary.add_trace(go.Scatter(x=monthly_summary['交付月份'], y=monthly_summary['月收入'],
+                                                       mode='lines+markers', name='月收入', yaxis='y2'))
+                
+                fig_monthly_summary.update_layout(
+                    title='每月项目数量与收入',
+                    xaxis=dict(title='月份'),
+                    yaxis=dict(title='项目数量', side='left'),
+                    yaxis2=dict(title='收入 (万元)', side='right', overlaying='y'),
+                    legend=dict(x=0.01, y=0.99)
+                )
+                st.plotly_chart(fig_monthly_summary, use_container_width=True)
+
+            # 添加交互式仪表板
+            st.subheader("🎯 关键指标仪表板")
+            kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+            
+            with kpi_col1:
+                st.metric(
+                    label="总项目数",
+                    value=len(full_data),
+                    delta=f"+{len(filtered_df)} (筛选后)"
+                )
+            
+            with kpi_col2:
+                avg_contract = full_data['合同金额'].mean()
+                avg_filtered_contract = filtered_df['合同金额'].mean()
+                st.metric(
+                    label="平均合同金额",
+                    value=f"{avg_contract:.2f} 万元",
+                    delta=f"{avg_filtered_contract - avg_contract:+.2f} (筛选差值)"
+                )
+            
+            with kpi_col3:
+                avg_revenue = full_data['纠偏后收入'].mean()
+                avg_filtered_revenue = filtered_df['纠偏后收入'].mean()
+                st.metric(
+                    label="平均纠偏收入",
+                    value=f"{avg_revenue:.2f} 万元",
+                    delta=f"{avg_filtered_revenue - avg_revenue:+.2f} (筛选差值)"
+                )
+            
+            with kpi_col4:
+                success_rate = (full_data['纠偏后收入'].sum() / full_data['合同金额'].sum() * 100) if full_data['合同金额'].sum() > 0 else 0
+                filtered_success_rate = (filtered_df['纠偏后收入'].sum() / filtered_df['合同金额'].sum() * 100) if filtered_df['合同金额'].sum() > 0 else 0
+                st.metric(
+                    label="整体转化率",
+                    value=f"{success_rate:.1f}%",
+                    delta=f"{filtered_success_rate - success_rate:+.1f}% (筛选差值)"
+                )
+
+            # 成单率分析
+            st.subheader("📊 成单率分析")
+            full_data['保守成单率数值'] = full_data['保守成单率'].apply(lambda x: float(str(x).replace('%', '')))
+            full_data['调整后成单率数值'] = full_data['调整后成单率'].apply(lambda x: float(str(x).replace('%', '')))
+            
+            rate_comparison = full_data[['项目名称', '保守成单率数值', '调整后成单率数值']].melt(
+                id_vars=['项目名称'], var_name='成单率类型', value_name='成单率')
+            
+            fig_rate = px.box(rate_comparison, x='成单率类型', y='成单率',
+                             title='保守成单率 vs 调整后成单率分布',
+                             labels={'成单率': '成单率 (%)', '成单率类型': '成单率类型'})
+            st.plotly_chart(fig_rate, use_container_width=True)
+
     elif st.session_state.selected_page == "成本管理":
         st.header("📦 成本管理")
         tab1, tab2, tab3, tab4 = st.tabs(["物料支出分析", "人工成本分析", "行政费用管理", "偶然收支管理"])
@@ -2140,6 +2299,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
