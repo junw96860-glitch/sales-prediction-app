@@ -831,7 +831,17 @@ def main():
         st.session_state.selected_page = "收入预测"
 
     if 'current_cash_balance' not in st.session_state:
-        st.session_state.current_cash_balance = 0.0
+        # 尝试从文件加载现金余额
+        cash_balance_file = 'cash_balance.json'
+        if os.path.exists(cash_balance_file):
+            try:
+                with open(cash_balance_file, 'r', encoding='utf-8') as f:
+                    cash_data = json.load(f)
+                    st.session_state.current_cash_balance = cash_data.get('balance', 0.0)
+            except:
+                st.session_state.current_cash_balance = 0.0
+        else:
+            st.session_state.current_cash_balance = 0.0
 
     # 导航菜单
     with st.sidebar:
@@ -1996,6 +2006,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
