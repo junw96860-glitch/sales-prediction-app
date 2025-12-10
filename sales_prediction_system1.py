@@ -1216,7 +1216,6 @@ def main():
                 st.session_state.data_manager['income'].data = income_data
                 DataManager.save_data_to_json(income_data, 'income_budget.json')
                 st.success("项目信息已更新并保存！")
-                st.rerun()  # 可选：立即刷新视图
     
             # 显示筛选后统计
             total_revenue_filtered = filtered_df['预期收入'].sum()
@@ -2227,6 +2226,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
