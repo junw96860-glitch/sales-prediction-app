@@ -1,4 +1,5 @@
 import streamlit as st
+import uuid
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -1002,6 +1003,7 @@ def main():
                 expected_revenue = contract_amount * (close_rate / 100) * time_decay
                 adjusted_revenue = manual_adjusted_income
                 new_project = {
+                    'ID': str(uuid.uuid4()),  # ✅ 添加唯一ID
                     '项目名称': project_name,
                     '交付日期': delivery_date,
                     '合同金额': round(contract_amount, 2),
@@ -1031,6 +1033,9 @@ def main():
     
         st.subheader("📥 收入预测数据导入")
         income_template_df = generate_template_data()['income']
+        # 确保模板包含 ID 列（可选，但兼容）
+        if 'ID' not in income_template_df.columns:
+            income_template_df['ID'] = ""
         income_template_csv = income_template_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="下载收入预测导入模板",
@@ -1069,6 +1074,12 @@ def main():
                             df.loc[idx, '交付月份'] = f"{row['交付日期'].year}-{row['交付日期'].month:02d}"
                             df.loc[idx, '月份数'] = month_diff
     
+                        # ✅ 补充缺失的 ID
+                        if 'ID' not in df.columns:
+                            df['ID'] = [str(uuid.uuid4()) for _ in range(len(df))]
+                        else:
+                            df['ID'] = df['ID'].apply(lambda x: x if pd.notna(x) and x != "" else str(uuid.uuid4()))
+    
                         df = DataManager.ensure_columns_compatibility(df)
                         if st.session_state.data_manager['income'].data.empty:
                             st.session_state.data_manager['income'].data = df.copy()
@@ -1084,7 +1095,6 @@ def main():
         # ==================== 项目明细编辑区（唯一一处） ====================
         st.header("📋 项目预测明细")
     
-        # 筛选控件
         full_data = st.session_state.data_manager['income'].data.copy()
         if full_data.empty:
             st.info("暂无项目数据，请先新增或导入项目。")
@@ -1092,7 +1102,11 @@ def main():
             total_adjusted_revenue_all = 0.0
             total_contract_all = 0.0
         else:
+            # ✅ 确保有 ID 列（兼容旧数据）
+            if 'ID' not in full_data.columns:
+                full_data['ID'] = [str(uuid.uuid4()) for _ in range(len(full_data))]
             full_data = DataManager.ensure_columns_compatibility(full_data)
+    
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 business_filter = st.selectbox(
@@ -1121,13 +1135,13 @@ def main():
             if month_filter != "全部":
                 filtered_df = filtered_df[filtered_df['交付月份'] == month_filter]
     
-            # 排序
+            # 排序（注意：不 reset_index，保留原始 index）
             ascending = (sort_order == "升序")
-            filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending).reset_index(drop=True)
+            filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
     
-            # 准备显示列
+            # 准备显示列（✅ 包含 ID 用于匹配，但前端隐藏）
             display_cols = [
-                '项目名称', '交付月份', '合同金额', '保守成单率',
+                'ID', '项目名称', '交付月份', '合同金额', '保守成单率',
                 '时间衰减因子', '调整后成单率', '预期收入', '纠偏后收入',
                 '首付款比例', '次付款比例', '质保金比例', '业务线'
             ]
@@ -1148,6 +1162,7 @@ def main():
                 use_container_width=True,
                 num_rows="dynamic",
                 column_config={
+                    "ID": None,  # 👈 隐藏 ID 列
                     "纠偏后收入": st.column_config.NumberColumn(
                         "纠偏后收入", help="直接输入调整后的收入金额", min_value=0.0, step=0.01, default=0.0
                     ),
@@ -1170,36 +1185,38 @@ def main():
                 rows_to_delete = edited_df[edited_df['删除'] == True]
                 if not rows_to_delete.empty:
                     if st.button(f"🗑️ 删除 {len(rows_to_delete)} 个选中的项目", type="secondary"):
-                        original_indices = filtered_df[edited_df['删除'] == True].index.tolist()
-                        st.session_state.data_manager['income'].data = full_data.drop(original_indices).reset_index(drop=True)
+                        ids_to_delete = rows_to_delete['ID'].tolist()
+                        mask = full_data['ID'].isin(ids_to_delete)
+                        st.session_state.data_manager['income'].data = full_data[~mask].reset_index(drop=True)
                         DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                         st.success(f"已删除 {len(rows_to_delete)} 个项目！")
                         st.rerun()
     
             # 处理编辑（排除删除列）
             edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
-            original_no_del = display_df.drop(columns=['删除']) if 'delete' in display_df.columns else display_df
-    
-            # 注意：display_df 是 filtered_df 的子集，而 filtered_df 保留了 full_data 的原始索引
-            # 所以我们可以通过 filtered_df.index 获取每行在 full_data 中的真实位置
-    
+            original_no_del = display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df
             if not edited_no_del.equals(original_no_del):
                 total_ratios = edited_no_del['首付款比例'] + edited_no_del['次付款比例'] + edited_no_del['质保金比例']
                 invalid_rows = edited_no_del[total_ratios != 100]
                 if not invalid_rows.empty:
                     st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
     
-                # ✅ 关键修复：遍历 edited_no_del 的每一行，通过 filtered_df.index[local_idx] 获取原始索引
-                for local_idx in edited_no_del.index:
-                    global_idx = filtered_df.index[local_idx]  # 这是该行在 full_data 中的真实索引
-                    # 更新原始数据
-                    st.session_state.data_manager['income'].data.loc[global_idx, '纠偏后收入'] = round(edited_no_del.loc[local_idx, '纠偏后收入'], 2)
-                    st.session_state.data_manager['income'].data.loc[global_idx, '首付款比例'] = edited_no_del.loc[local_idx, '首付款比例']
-                    st.session_state.data_manager['income'].data.loc[global_idx, '次付款比例'] = edited_no_del.loc[local_idx, '次付款比例']
-                    st.session_state.data_manager['income'].data.loc[global_idx, '质保金比例'] = edited_no_del.loc[local_idx, '质保金比例']
+                # ✅ 核心修复：通过 ID 更新原始数据
+                income_data = st.session_state.data_manager['income'].data
+                for _, row in edited_no_del.iterrows():
+                    project_id = row['ID']
+                    mask = income_data['ID'] == project_id
+                    if mask.any():
+                        idx = income_data[mask].index[0]
+                        income_data.loc[idx, '纠偏后收入'] = round(row['纠偏后收入'], 2)
+                        income_data.loc[idx, '首付款比例'] = row['首付款比例']
+                        income_data.loc[idx, '次付款比例'] = row['次付款比例']
+                        income_data.loc[idx, '质保金比例'] = row['质保金比例']
     
-                DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
+                st.session_state.data_manager['income'].data = income_data
+                DataManager.save_data_to_json(income_data, 'income_budget.json')
                 st.success("项目信息已更新并保存！")
+                st.rerun()  # 可选：立即刷新视图
     
             # 显示筛选后统计
             total_revenue_filtered = filtered_df['预期收入'].sum()
@@ -2210,6 +2227,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
