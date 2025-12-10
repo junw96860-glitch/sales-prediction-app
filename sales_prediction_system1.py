@@ -1864,11 +1864,15 @@ def main():
                 budget_summary = budget_summary.merge(admin_summary[['支出月份', '月度成本']], left_on='月份', right_on='支出月份', how='left').fillna(0)
                 budget_summary.drop(columns=['支出月份'], inplace=True)
             else: budget_summary['月度成本'] = 0
-            if not occasional_income_monthly.empty:
+            if '月份' in occasional_income_monthly.columns:
                 budget_summary = budget_summary.merge(occasional_income_monthly, on='月份', how='left').fillna(0)
+            else:
+                budget_summary['收入金额'] = 0  # 如果没有数据，补0列
             else: budget_summary['偶然收入'] = 0
-            if not occasional_expense_monthly.empty:
+            if '月份' in occasional_expense_monthly.columns:
                 budget_summary = budget_summary.merge(occasional_expense_monthly, on='月份', how='left').fillna(0)
+            else:
+                budget_summary['支出金额'] = 0  # 如果没有数据，补0列
             else: budget_summary['偶然支出'] = 0
             budget_summary['总收入'] = budget_summary['纠偏后收入'] + budget_summary['偶然收入']
             budget_summary['总支出'] = budget_summary['物料成本'] + budget_summary['成本金额'] + budget_summary['月度成本'] + budget_summary['偶然支出']
@@ -2021,6 +2025,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
