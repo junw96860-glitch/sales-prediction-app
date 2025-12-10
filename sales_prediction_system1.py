@@ -965,249 +965,272 @@ def main():
         with col2:
             business_line = st.selectbox("业务线", ["光谱设备/服务", "配液设备", "自动化项目", "其他"])
             close_rate = st.slider("保守成单率 (%)", min_value=0, max_value=100, value=50, step=1)
-            manual_adjusted_income = st.number_input("纠偏后收入 (万元)", min_value=0.0, value=round(contract_amount * 0.5 * math.exp(-0.0315 * 0), 2), step=0.01, help="直接输入调整后的收入金额")
+            manual_adjusted_income = st.number_input(
+                "纠偏后收入 (万元)",
+                min_value=0.0,
+                value=round(contract_amount * 0.5 * math.exp(-0.0315 * 0), 2),
+                step=0.01,
+                help="直接输入调整后的收入金额"
+            )
             st.subheader("付款比例设置")
             col_a, col_b, col_c = st.columns(3)
-            with col_a: first_payment_ratio = st.number_input("首付款比例 (%)", min_value=0, max_value=100, value=50, step=1)
-            with col_b: second_payment_ratio = st.number_input("次付款比例 (%)", min_value=0, max_value=100, value=40, step=1)
-            with col_c: final_payment_ratio = st.number_input("质保金比例 (%)", min_value=0, max_value=100, value=10, step=1)
+            with col_a:
+                first_payment_ratio = st.number_input("首付款比例 (%)", min_value=0, max_value=100, value=50, step=1)
+            with col_b:
+                second_payment_ratio = st.number_input("次付款比例 (%)", min_value=0, max_value=100, value=40, step=1)
+            with col_c:
+                final_payment_ratio = st.number_input("质保金比例 (%)", min_value=0, max_value=100, value=10, step=1)
             total_ratio = first_payment_ratio + second_payment_ratio + final_payment_ratio
             st.caption(f"付款比例总和: {total_ratio}%")
-            if total_ratio != 100: st.warning(f"付款比例总和不是100%，当前总和: {total_ratio}%")
+            if total_ratio != 100:
+                st.warning(f"付款比例总和不是100%，当前总和: {total_ratio}%")
             st.caption("提示：取销售提供区间的下限值，例如50%-80%取50%")
-        
+    
         if st.button("计算并添加项目", type="primary"):
-            if not project_name: st.error("项目名称不能为空")
-            elif first_payment_ratio + second_payment_ratio + final_payment_ratio != 100: st.error("付款比例总和必须为100%")
+            if not project_name:
+                st.error("项目名称不能为空")
+            elif total_ratio != 100:
+                st.error("付款比例总和必须为100%")
             else:
                 base_datetime = datetime.combine(datetime(2025, 12, 8), datetime.min.time())
                 delivery_datetime = datetime.combine(delivery_date, datetime.min.time())
                 month_diff = (delivery_datetime.year - base_datetime.year) * 12 + (delivery_datetime.month - base_datetime.month)
-                if month_diff < 0: month_diff = 0
+                if month_diff < 0:
+                    month_diff = 0
                 time_decay = math.exp(-0.0315 * month_diff)
                 adjusted_rate = (close_rate / 100) * time_decay
                 expected_revenue = contract_amount * (close_rate / 100) * time_decay
                 adjusted_revenue = manual_adjusted_income
                 new_project = {
-                    '项目名称': project_name, '交付日期': delivery_date, '合同金额': round(contract_amount, 2),
-                    '保守成单率': f"{close_rate}%", '业务线': business_line, '时间衰减因子': round(time_decay, 4),
-                    '调整后成单率': f"{round(adjusted_rate * 100, 2)}%", '预期收入': round(expected_revenue, 2),
-                    '纠偏后收入': round(adjusted_revenue, 2), '首付款比例': first_payment_ratio,
-                    '次付款比例': second_payment_ratio, '质保金比例': final_payment_ratio,
-                    '交付月份': f"{delivery_date.year}-{delivery_date.month:02d}", '月份数': month_diff
+                    '项目名称': project_name,
+                    '交付日期': delivery_date,
+                    '合同金额': round(contract_amount, 2),
+                    '保守成单率': f"{close_rate}%",
+                    '业务线': business_line,
+                    '时间衰减因子': round(time_decay, 4),
+                    '调整后成单率': f"{round(adjusted_rate * 100, 2)}%",
+                    '预期收入': round(expected_revenue, 2),
+                    '纠偏后收入': round(adjusted_revenue, 2),
+                    '首付款比例': first_payment_ratio,
+                    '次付款比例': second_payment_ratio,
+                    '质保金比例': final_payment_ratio,
+                    '交付月份': f"{delivery_date.year}-{delivery_date.month:02d}",
+                    '月份数': month_diff
                 }
                 new_df = pd.DataFrame([new_project])
                 if st.session_state.data_manager['income'].data.empty:
                     st.session_state.data_manager['income'].data = new_df.copy()
                 else:
-                    st.session_state.data_manager['income'].data = pd.concat([st.session_state.data_manager['income'].data, new_df], ignore_index=True)
+                    st.session_state.data_manager['income'].data = pd.concat(
+                        [st.session_state.data_manager['income'].data, new_df], ignore_index=True
+                    )
                 DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
-                st.success(f"项目 '{project_name}' 已成功添加！预期收入: {expected_revenue:.2f}万元，纠偏后收入: {adjusted_revenue:.2f}万元")
-        
+                st.success(
+                    f"项目 '{project_name}' 已成功添加！预期收入: {expected_revenue:.2f}万元，纠偏后收入: {adjusted_revenue:.2f}万元"
+                )
+    
         st.subheader("📥 收入预测数据导入")
         income_template_df = generate_template_data()['income']
         income_template_csv = income_template_df.to_csv(index=False).encode('utf-8')
-        st.download_button(label="下载收入预测导入模板", data=income_template_csv, file_name="收入预测导入模板.csv", mime="text/csv")
+        st.download_button(
+            label="下载收入预测导入模板",
+            data=income_template_csv,
+            file_name="收入预测导入模板.csv",
+            mime="text/csv"
+        )
         income_uploaded_file = st.file_uploader("上传收入预测数据 (CSV/Excel)", type=['csv', 'xlsx', 'xls'], key="income_upload")
         if income_uploaded_file is not None:
             if st.button("导入收入预测数据", type="primary", key="import_income"):
                 try:
                     if income_uploaded_file.name.endswith('.csv'):
                         df = pd.read_csv(income_uploaded_file)
-                    elif income_uploaded_file.name.endswith(('.xlsx', '.xls')):
+                    else:
                         df = pd.read_excel(income_uploaded_file)
+    
                     required_columns = ['项目名称', '交付日期', '合同金额', '保守成单率', '业务线']
                     missing_columns = [col for col in required_columns if col not in df.columns]
-                    if missing_columns: st.error(f"文件缺少必要列: {', '.join(missing_columns)}")
+                    if missing_columns:
+                        st.error(f"文件缺少必要列: {', '.join(missing_columns)}")
                     else:
-                        df['交付日期'] = pd.to_datetime(df['交付日期'])
+                        df['交付日期'] = pd.to_datetime(df['交付日期']).dt.date
                         base_datetime = datetime.combine(datetime(2025, 12, 8), datetime.min.time())
                         for idx, row in df.iterrows():
                             delivery_datetime = datetime.combine(row['交付日期'], datetime.min.time())
                             month_diff = (delivery_datetime.year - base_datetime.year) * 12 + (delivery_datetime.month - base_datetime.month)
-                            if month_diff < 0: month_diff = 0
+                            if month_diff < 0:
+                                month_diff = 0
                             time_decay = math.exp(-0.0315 * month_diff)
-                            close_rate = float(row['保守成单率'].replace('%', '')) if isinstance(row['保守成单率'], str) else row['保守成单率']
-                            expected_revenue = row['合同金额'] * (close_rate / 100) * time_decay
+                            close_rate_val = float(str(row['保守成单率']).replace('%', ''))
+                            expected_revenue = row['合同金额'] * (close_rate_val / 100) * time_decay
                             df.loc[idx, '时间衰减因子'] = round(time_decay, 4)
-                            df.loc[idx, '调整后成单率'] = f"{round(close_rate * time_decay, 2)}%"
+                            df.loc[idx, '调整后成单率'] = f"{round(close_rate_val * time_decay, 2)}%"
                             df.loc[idx, '预期收入'] = round(expected_revenue, 2)
                             df.loc[idx, '纠偏后收入'] = round(expected_revenue, 2)
                             df.loc[idx, '交付月份'] = f"{row['交付日期'].year}-{row['交付日期'].month:02d}"
                             df.loc[idx, '月份数'] = month_diff
+    
                         df = DataManager.ensure_columns_compatibility(df)
                         if st.session_state.data_manager['income'].data.empty:
                             st.session_state.data_manager['income'].data = df.copy()
                         else:
-                            st.session_state.data_manager['income'].data = pd.concat([st.session_state.data_manager['income'].data, df], ignore_index=True)
+                            st.session_state.data_manager['income'].data = pd.concat(
+                                [st.session_state.data_manager['income'].data, df], ignore_index=True
+                            )
                         DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                         st.success(f"成功导入 {len(df)} 个收入预测项目！")
                 except Exception as e:
                     st.error(f"导入收入预测数据时出错: {str(e)}")
-        
+    
+        # ==================== 项目明细编辑区（唯一一处） ====================
         st.header("📋 项目预测明细")
-        # 添加筛选和排序控件
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            business_filter = st.selectbox("业务线筛选", options=["全部"] + list(st.session_state.data_manager['income'].data['业务线'].unique()) if not st.session_state.data_manager['income'].data.empty else ["全部"], index=0)
-        with col2:
-            month_filter = st.selectbox("月份筛选", options=["全部"] + list(st.session_state.data_manager['income'].data['交付月份'].unique()) if not st.session_state.data_manager['income'].data.empty else ["全部"], index=0)
-        with col3:
-            sort_by = st.selectbox("排序字段", ["交付月份", "合同金额", "纠偏后收入", "时间衰减因子", "业务线"])
-        with col4:
-            sort_order = st.selectbox("排序方式", ["降序", "升序"])
-
-        # 应用筛选条件
-        filtered_df = st.session_state.data_manager['income'].data.copy()
-        if business_filter != "全部":
-            filtered_df = filtered_df[filtered_df['业务线'] == business_filter]
-        if month_filter != "全部":
-            filtered_df = filtered_df[filtered_df['交付月份'] == month_filter]
-
-        # 应用排序
-        ascending = True if sort_order == "升序" else False
-        filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending)
-
-        if not filtered_df.empty:
-            st.session_state.data_manager['income'].data = DataManager.ensure_columns_compatibility(st.session_state.data_manager['income'].data)
-            
-            # 显示筛选后的数据
-            display_df = filtered_df[[
-                '项目名称', '交付月份', '合同金额', '保守成单率', 
+    
+        # 筛选控件
+        full_data = st.session_state.data_manager['income'].data.copy()
+        if full_data.empty:
+            st.info("暂无项目数据，请先新增或导入项目。")
+            total_revenue_all = 0.0
+            total_adjusted_revenue_all = 0.0
+            total_contract_all = 0.0
+        else:
+            full_data = DataManager.ensure_columns_compatibility(full_data)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                business_filter = st.selectbox(
+                    "业务线筛选",
+                    options=["全部"] + sorted(full_data['业务线'].dropna().unique().tolist()),
+                    index=0
+                )
+            with col2:
+                month_filter = st.selectbox(
+                    "月份筛选",
+                    options=["全部"] + sorted(full_data['交付月份'].dropna().unique().tolist()),
+                    index=0
+                )
+            with col3:
+                sort_by = st.selectbox(
+                    "排序字段",
+                    ["交付月份", "合同金额", "纠偏后收入", "时间衰减因子", "业务线"]
+                )
+            with col4:
+                sort_order = st.selectbox("排序方式", ["降序", "升序"])
+    
+            # 应用筛选
+            filtered_df = full_data.copy()
+            if business_filter != "全部":
+                filtered_df = filtered_df[filtered_df['业务线'] == business_filter]
+            if month_filter != "全部":
+                filtered_df = filtered_df[filtered_df['交付月份'] == month_filter]
+    
+            # 排序
+            ascending = (sort_order == "升序")
+            filtered_df = filtered_df.sort_values(by=sort_by, ascending=ascending).reset_index(drop=True)
+    
+            # 准备显示列
+            display_cols = [
+                '项目名称', '交付月份', '合同金额', '保守成单率',
                 '时间衰减因子', '调整后成单率', '预期收入', '纠偏后收入',
                 '首付款比例', '次付款比例', '质保金比例', '业务线'
-            ]].copy()
-            
-            # 添加删除列
+            ]
+            display_df = filtered_df[display_cols].copy()
             display_df['删除'] = False
-            
+    
             st.subheader("项目信息编辑")
             edited_df = st.data_editor(
                 display_df.style.format({
-                    '合同金额': '{:.2f}', '时间衰减因子': '{:.4f}', '预期收入': '{:.2f}',
-                    '纠偏后收入': '{:.2f}', '首付款比例': '{:.0f}%', '次付款比例': '{:.0f}%', '质保金比例': '{:.0f}%'
+                    '合同金额': '{:.2f}',
+                    '时间衰减因子': '{:.4f}',
+                    '预期收入': '{:.2f}',
+                    '纠偏后收入': '{:.2f}',
+                    '首付款比例': '{:.0f}%',
+                    '次付款比例': '{:.0f}%',
+                    '质保金比例': '{:.0f}%'
                 }),
-                use_container_width=True, num_rows="dynamic",
+                use_container_width=True,
+                num_rows="dynamic",
                 column_config={
-                    "纠偏后收入": st.column_config.NumberColumn("纠偏后收入", help="直接输入调整后的收入金额", min_value=0.0, step=0.01, default=0.0),
-                    "首付款比例": st.column_config.NumberColumn("首付款比例", help="首付款占总收入的百分比", min_value=0, max_value=100, step=1, default=50),
-                    "次付款比例": st.column_config.NumberColumn("次付款比例", help="次付款占总收入的百分比", min_value=0, max_value=100, step=1, default=40),
-                    "质保金比例": st.column_config.NumberColumn("质保金比例", help="质保金占总收入的百分比", min_value=0, max_value=100, step=1, default=10),
+                    "纠偏后收入": st.column_config.NumberColumn(
+                        "纠偏后收入", help="直接输入调整后的收入金额", min_value=0.0, step=0.01, default=0.0
+                    ),
+                    "首付款比例": st.column_config.NumberColumn(
+                        "首付款比例", help="首付款占总收入的百分比", min_value=0, max_value=100, step=1, default=50
+                    ),
+                    "次付款比例": st.column_config.NumberColumn(
+                        "次付款比例", help="次付款占总收入的百分比", min_value=0, max_value=100, step=1, default=40
+                    ),
+                    "质保金比例": st.column_config.NumberColumn(
+                        "质保金比例", help="质保金占总收入的百分比", min_value=0, max_value=100, step=1, default=10
+                    ),
                     "删除": st.column_config.CheckboxColumn("删除", default=False)
-                }
+                },
+                key="filtered_project_editor"
             )
-            
-            # 处理删除操作
+    
+            # 处理删除
             if '删除' in edited_df.columns:
                 rows_to_delete = edited_df[edited_df['删除'] == True]
                 if not rows_to_delete.empty:
                     if st.button(f"🗑️ 删除 {len(rows_to_delete)} 个选中的项目", type="secondary"):
-                        # 从原始数据中删除选中的行
-                        original_indices = filtered_df.index[edited_df['删除'] == True].tolist()
-                        st.session_state.data_manager['income'].data = st.session_state.data_manager['income'].data.drop(original_indices).reset_index(drop=True)
+                        original_indices = filtered_df[edited_df['删除'] == True].index.tolist()
+                        st.session_state.data_manager['income'].data = full_data.drop(original_indices).reset_index(drop=True)
                         DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                         st.success(f"已删除 {len(rows_to_delete)} 个项目！")
-                        st.rerun()  # 刷新页面
-            
-            # 处理编辑操作（排除删除列）
-            edited_df_filtered = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
-            if not edited_df_filtered.equals(display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df):
-                total_ratios = edited_df_filtered['首付款比例'] + edited_df_filtered['次付款比例'] + edited_df_filtered['质保金比例']
-                invalid_rows = edited_df_filtered[total_ratios != 100]
+                        st.rerun()
+    
+            # 处理编辑（排除删除列）
+            edited_no_del = edited_df.drop(columns=['删除']) if '删除' in edited_df.columns else edited_df
+            original_no_del = display_df.drop(columns=['删除']) if '删除' in display_df.columns else display_df
+            if not edited_no_del.equals(original_no_del):
+                total_ratios = edited_no_del['首付款比例'] + edited_no_del['次付款比例'] + edited_no_del['质保金比例']
+                invalid_rows = edited_no_del[total_ratios != 100]
                 if not invalid_rows.empty:
                     st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
-                
+    
                 # 更新原始数据
-                for idx in edited_df_filtered.index:
-                    original_idx = filtered_df.index[idx]  # 获取原始数据的索引
-                    st.session_state.data_manager['income'].data.loc[original_idx, '纠偏后收入'] = round(edited_df_filtered.loc[idx, '纠偏后收入'], 2)
-                    st.session_state.data_manager['income'].data.loc[original_idx, '首付款比例'] = edited_df_filtered.loc[idx, '首付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '次付款比例'] = edited_df_filtered.loc[idx, '次付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '质保金比例'] = edited_df_filtered.loc[idx, '质保金比例']
-                
+                for local_idx in edited_no_del.index:
+                    global_idx = filtered_df.index[local_idx]  # 映射回原始DataFrame索引
+                    st.session_state.data_manager['income'].data.loc[global_idx, '纠偏后收入'] = round(edited_no_del.loc[local_idx, '纠偏后收入'], 2)
+                    st.session_state.data_manager['income'].data.loc[global_idx, '首付款比例'] = edited_no_del.loc[local_idx, '首付款比例']
+                    st.session_state.data_manager['income'].data.loc[global_idx, '次付款比例'] = edited_no_del.loc[local_idx, '次付款比例']
+                    st.session_state.data_manager['income'].data.loc[global_idx, '质保金比例'] = edited_no_del.loc[local_idx, '质保金比例']
+    
                 DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
                 st.success("项目信息已更新并保存！")
-            
-            if not edited_df.equals(display_df):
-                total_ratios = edited_df['首付款比例'] + edited_df['次付款比例'] + edited_df['质保金比例']
-                invalid_rows = edited_df[total_ratios != 100]
-                if not invalid_rows.empty:
-                    st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
-                
-                # 更新原始数据
-                for idx in edited_df.index:
-                    original_idx = filtered_df.index[idx]  # 获取原始数据的索引
-                    st.session_state.data_manager['income'].data.loc[original_idx, '纠偏后收入'] = round(edited_df.loc[idx, '纠偏后收入'], 2)
-                    st.session_state.data_manager['income'].data.loc[original_idx, '首付款比例'] = edited_df.loc[idx, '首付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '次付款比例'] = edited_df.loc[idx, '次付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '质保金比例'] = edited_df.loc[idx, '质保金比例']
-                
-                DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
-                st.success("项目信息已更新并保存！")
-            
-            # 显示统计信息
-            total_revenue = filtered_df['预期收入'].sum()
-            total_adjusted_revenue = filtered_df['纠偏后收入'].sum()
-            total_contract = filtered_df['合同金额'].sum()
+    
+            # 显示筛选后统计
+            total_revenue_filtered = filtered_df['预期收入'].sum()
+            total_adjusted_revenue_filtered = filtered_df['纠偏后收入'].sum()
+            total_contract_filtered = filtered_df['合同金额'].sum()
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("💰 筛选后总预期收入", f"{total_revenue:.2f} 万元", f"合同总额: {total_contract:.2f} 万元")
+                st.metric("💰 筛选后总预期收入", f"{total_revenue_filtered:.2f} 万元", f"合同总额: {total_contract_filtered:.2f} 万元")
             with col2:
-                st.metric("💰 筛选后总纠偏后收入", f"{total_adjusted_revenue:.2f} 万元", f"调整幅度: {((total_adjusted_revenue-total_revenue)/total_revenue*100):+.1f}%" if total_revenue > 0 else "调整幅度: 0.0%")
-            
-            # 显示筛选结果统计
-            st.info(f"共显示 {len(filtered_df)} 个项目 (共 {len(st.session_state.data_manager['income'].data)} 个项目)")
-
-        else:
-            st.info("没有找到符合条件的项目")
-            st.metric("项目总数", len(st.session_state.data_manager['income'].data))
-        if not st.session_state.data_manager['income'].data.empty:
-            st.session_state.data_manager['income'].data = DataManager.ensure_columns_compatibility(st.session_state.data_manager['income'].data)
-            display_df = st.session_state.data_manager['income'].data[[
-                '项目名称', '交付月份', '合同金额', '保守成单率', 
-                '时间衰减因子', '调整后成单率', '预期收入', '纠偏后收入',
-                '首付款比例', '次付款比例', '质保金比例', '业务线'
-            ]].copy()
-            st.subheader("项目信息编辑")
-            edited_df = st.data_editor(
-                display_df.style.format({
-                    '合同金额': '{:.2f}', '时间衰减因子': '{:.4f}', '预期收入': '{:.2f}',
-                    '纠偏后收入': '{:.2f}', '首付款比例': '{:.0f}%', '次付款比例': '{:.0f}%', '质保金比例': '{:.0f}%'
-                }),
-                use_container_width=True, num_rows="dynamic",
-                key="project_data_editor",  # 添加唯一key
-                column_config={
-                    "纠偏后收入": st.column_config.NumberColumn("纠偏后收入", help="直接输入调整后的收入金额", min_value=0.0, step=0.01, default=0.0),
-                    "首付款比例": st.column_config.NumberColumn("首付款比例", help="首付款占总收入的百分比", min_value=0, max_value=100, step=1, default=50),
-                    "次付款比例": st.column_config.NumberColumn("次付款比例", help="次付款占总收入的百分比", min_value=0, max_value=100, step=1, default=40),
-                    "质保金比例": st.column_config.NumberColumn("质保金比例", help="质保金占总收入的百分比", min_value=0, max_value=100, step=1, default=10)
-                }
-            )
-            if not edited_df.equals(display_df):
-                total_ratios = edited_df['首付款比例'] + edited_df['次付款比例'] + edited_df['质保金比例']
-                invalid_rows = edited_df[total_ratios != 100]
-                if not invalid_rows.empty: st.warning(f"以下项目的付款比例总和不是100%: {invalid_rows['项目名称'].tolist()}")
-                for idx in edited_df.index:
-                    original_idx = st.session_state.data_manager['income'].data.index[idx]
-                    st.session_state.data_manager['income'].data.loc[original_idx, '纠偏后收入'] = round(edited_df.loc[idx, '纠偏后收入'], 2)
-                    st.session_state.data_manager['income'].data.loc[original_idx, '首付款比例'] = edited_df.loc[idx, '首付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '次付款比例'] = edited_df.loc[idx, '次付款比例']
-                    st.session_state.data_manager['income'].data.loc[original_idx, '质保金比例'] = edited_df.loc[idx, '质保金比例']
-                DataManager.save_data_to_json(st.session_state.data_manager['income'].data, 'income_budget.json')
-                st.success("项目信息已更新并保存！")
-            total_revenue = st.session_state.data_manager['income'].data['预期收入'].sum()
-            total_adjusted_revenue = st.session_state.data_manager['income'].data['纠偏后收入'].sum()
-            total_contract = st.session_state.data_manager['income'].data['合同金额'].sum()
-            col1, col2 = st.columns(2)
-            with col1: st.metric("💰 总预期收入", f"{total_revenue:.2f} 万元", f"合同总额: {total_contract:.2f} 万元")
-            with col2: st.metric("💰 总纠偏后收入", f"{total_adjusted_revenue:.2f} 万元", f"调整幅度: {((total_adjusted_revenue-total_revenue)/total_revenue*100):+.1f}%" if total_revenue > 0 else "调整幅度: 0.0%")
+                delta_pct = ((total_adjusted_revenue_filtered - total_revenue_filtered) / total_revenue_filtered * 100) if total_revenue_filtered > 0 else 0.0
+                st.metric("💰 筛选后总纠偏后收入", f"{total_adjusted_revenue_filtered:.2f} 万元", f"调整幅度: {delta_pct:+.1f}%")
+            st.info(f"共显示 {len(filtered_df)} 个项目 (总计 {len(full_data)} 个)")
+    
+            # 全局汇总指标（用于下方图表）
+            total_revenue_all = full_data['预期收入'].sum()
+            total_adjusted_revenue_all = full_data['纠偏后收入'].sum()
+            total_contract_all = full_data['合同金额'].sum()
+    
+        # ==================== 全局汇总 & 可视化 ====================
+        st.divider()
+        st.subheader("📊 全局预测概览")
+    
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("项目总数", len(full_data))
+        with col2:
+            st.metric("总合同金额", f"{total_contract_all:.2f} 万元")
+        with col3:
+            st.metric("总纠偏后收入", f"{total_adjusted_revenue_all:.2f} 万元")
+    
+        if not full_data.empty:
             summary_df = st.session_state.data_manager['income'].generate_summary()
-            st.subheader("📈 预测摘要")
-            col1, col2 = st.columns(2)
-            with col1: st.metric("项目总数", len(st.session_state.data_manager['income'].data))
-            with col2: st.metric("总纠偏后收入", f"{total_adjusted_revenue:.2f}万元")
-            st.header("📊 预测可视化")
+    
+            st.header("📈 预测可视化")
             tab1, tab2, tab3 = st.tabs(["季度分布", "业务线分析", "时间衰减趋势"])
+    
             with tab1:
                 quarterly_data = summary_df[summary_df['类别'] == '季度收入']
                 if not quarterly_data.empty:
@@ -1216,42 +1239,85 @@ def main():
                     fig_q = go.Figure()
                     fig_q.add_trace(go.Bar(x=quarterly_data['项目_中文'], y=quarterly_data['金额'], name='纠偏后收入', marker_color='#1a2a6c'))
                     fig_q.add_trace(go.Scatter(x=quarterly_data['项目_中文'], y=quarterly_data['累计占比'], name='累计占比', yaxis='y2', mode='lines+markers', line=dict(color='#ff2e2e', width=3), marker=dict(size=8)))
-                    fig_q.update_layout(title='季度收入分布与累计占比', xaxis_title='季度', yaxis_title='纠偏后收入 (万元)', yaxis2=dict(title='累计占比 (%)', overlaying='y', side='right'), hovermode='x unified', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+                    fig_q.update_layout(
+                        title='季度收入分布与累计占比',
+                        xaxis_title='季度',
+                        yaxis_title='纠偏后收入 (万元)',
+                        yaxis2=dict(title='累计占比 (%)', overlaying='y', side='right'),
+                        hovermode='x unified',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)'
+                    )
                     st.plotly_chart(fig_q, use_container_width=True)
-                    quarterly_display = quarterly_data[['类别', '项目_中文', '金额', '项目数', '平均衰减', '累计占比', '合同总额']].copy()
-                    quarterly_display = quarterly_display.rename(columns={'项目_中文': '项目'})
+                    quarterly_display = quarterly_data[['类别', '项目_中文', '金额', '项目数', '平均衰减', '累计占比', '合同总额']].rename(columns={'项目_中文': '项目'})
                     st.dataframe(quarterly_display.style.format({
                         '金额': '{:.2f}', '累计占比': '{:.1f}%', '项目数': '{:.0f}', '平均衰减': '{:.4f}', '合同总额': '{:.2f}'
                     }), use_container_width=True)
-                else: st.info("暂无季度数据可显示")
+                else:
+                    st.info("暂无季度数据可显示")
+    
             with tab2:
                 business_data = summary_df[summary_df['类别'] == '业务线']
                 if not business_data.empty:
                     fig_b = px.pie(business_data, values='金额', names='项目', title='业务线收入贡献', hole=0.3, color_discrete_sequence=px.colors.qualitative.Set3)
                     fig_b.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig_b, use_container_width=True)
+    
                     fig_b2 = go.Figure()
                     fig_b2.add_trace(go.Bar(x=business_data['项目'], y=business_data['金额'], name='纠偏后收入', marker_color='#1a2a6c'))
                     fig_b2.add_trace(go.Bar(x=business_data['项目'], y=business_data['合同总额'], name='合同总额', marker_color='#83c9ff'))
-                    fig_b2.update_layout(barmode='group', title='业务线收入对比', xaxis_title='业务线', yaxis_title='金额 (万元)', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+                    fig_b2.update_layout(
+                        barmode='group',
+                        title='业务线收入对比',
+                        xaxis_title='业务线',
+                        yaxis_title='金额 (万元)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)'
+                    )
                     st.plotly_chart(fig_b2, use_container_width=True)
+    
                     st.dataframe(business_data.style.format({
                         '合同总额': '{:.2f}', '金额': '{:.2f}', '贡献率': '{:.1f}%', '项目数': '{:.0f}'
                     }), use_container_width=True)
-                else: st.info("暂无业务线数据可显示")
+                else:
+                    st.info("暂无业务线数据可显示")
+    
             with tab3:
-                decay_data = st.session_state.data_manager['income'].data.copy()
+                decay_data = full_data.copy()
                 decay_data['交付年月'] = pd.to_datetime(decay_data['交付日期']).dt.strftime('%Y-%m')
-                fig_adj = px.scatter(decay_data, x='预期收入', y='纠偏后收入', size='纠偏后收入', color='业务线', hover_name='项目名称', hover_data=['合同金额', '保守成单率', '时间衰减因子'], title='纠偏后收入 vs 预期收入')
+                fig_adj = px.scatter(
+                    decay_data,
+                    x='预期收入',
+                    y='纠偏后收入',
+                    size='纠偏后收入',
+                    color='业务线',
+                    hover_name='项目名称',
+                    hover_data=['合同金额', '保守成单率', '时间衰减因子'],
+                    title='纠偏后收入 vs 预期收入'
+                )
                 max_val = max(decay_data['预期收入'].max(), decay_data['纠偏后收入'].max())
                 fig_adj.add_trace(go.Scatter(x=[0, max_val], y=[0, max_val], mode='lines', name='y=x参考线', line=dict(color='red', dash='dash')))
-                fig_adj.update_layout(xaxis_title='预期收入', yaxis_title='纠偏后收入', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+                fig_adj.update_layout(
+                    xaxis_title='预期收入',
+                    yaxis_title='纠偏后收入',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig_adj, use_container_width=True)
+    
                 months = np.arange(0, 25)
                 decay_values = np.exp(-0.0315 * months)
                 fig_curve = go.Figure()
                 fig_curve.add_trace(go.Scatter(x=months, y=decay_values, mode='lines+markers', name='λ=0.0315', line=dict(color='#1a2a6c', width=3)))
-                fig_curve.update_layout(title='时间衰减曲线', xaxis_title='月份数', yaxis_title='衰减因子', yaxis_range=[0, 1.05], hovermode='x unified', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+                fig_curve.update_layout(
+                    title='时间衰减曲线',
+                    xaxis_title='月份数',
+                    yaxis_title='衰减因子',
+                    yaxis_range=[0, 1.05],
+                    hovermode='x unified',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig_curve, use_container_width=True)
 
     elif st.session_state.selected_page == "成本管理":
@@ -2139,6 +2205,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
