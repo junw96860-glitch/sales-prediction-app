@@ -1807,7 +1807,7 @@ def main():
                     admin_display = admin_display.rename(columns={'支出月份_中文': '支出月份'})
                     # 重新排序列，使一级分类在费用类型之前
                     admin_display = admin_display[['一级分类', '费用类型', '费用项目', '支出月份', '月度成本', '付款频率', '支出日期']]
-                    st.dataframe(admin_display.style.format({'月度成本': '{:.2f}'}), use_container_width=True
+                    st.dataframe(admin_display.style.format({'月度成本': '{:.2f}'}), use_container_width=True)
             else: 
                 st.info("暂无行政费用数据。请添加行政费用项目或导入数据。")
         
@@ -2370,6 +2370,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
