@@ -2119,7 +2119,29 @@ def main():
 
     elif st.session_state.selected_page == "全面预算汇总":
         st.header("📋 全面预算汇总表")
-        if not st.session_state.data_manager['income'].data.empty:
+        
+        # 时间段筛选控件
+        st.subheader("📅 时间段筛选")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_month = st.selectbox(
+                "开始月份", 
+                options=[f"{year}-{month:02d}" for year in range(2024, 2028) for month in range(1, 13)],
+                index=12,  # 默认2025年1月
+                help="选择分析的起始月份"
+            )
+        with col2:
+            end_month = st.selectbox(
+                "结束月份", 
+                options=[f"{year}-{month:02d}" for year in range(2024, 2028) for month in range(1, 13)],
+                index=24,  # 默认2026年1月
+                help="选择分析的结束月份"
+            )
+        
+        # 验证时间段
+        if start_month > end_month:
+            st.error("开始月份不能晚于结束月份！")
+        elif not st.session_state.data_manager['income'].data.empty:
             # === 收入汇总 ===
             income_monthly = st.session_state.data_manager['income'].data.copy()
             income_monthly['交付月份'] = pd.to_datetime(income_monthly['交付日期']).dt.to_period('M')
@@ -2264,349 +2286,520 @@ def main():
                 0
             )
     
-            # === 排序与格式化月份 ===
-            budget_summary['月份_dt'] = pd.to_datetime(budget_summary['月份'])
-            budget_summary = budget_summary.sort_values('月份_dt').drop(columns=['月份_dt'])
-            budget_summary['月份_中文'] = pd.to_datetime(budget_summary['月份']).apply(
-                lambda x: f"{x.year}年{x.month}月"
-            )
-            budget_summary = budget_summary.rename(columns={'月份': '月份_英文', '月份_中文': '月份'})
+            # === 按时间段筛选数据 ===
+            filtered_budget = budget_summary[
+                (budget_summary['月份'] >= start_month) & (budget_summary['月份'] <= end_month)
+            ].copy()
     
-            # === 专业投资视角的关键指标计算 ===
-            total_revenue = budget_summary['总收入'].sum()
-            total_expense = budget_summary['总支出'].sum()
-            total_profit = budget_summary['毛利润'].sum()
-            avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
-            avg_operating_expense_rate = (budget_summary['运营支出'].sum() / total_revenue * 100) if total_revenue > 0 else 0
-            
-            # 月度增长指标
-            monthly_revenue_growth = budget_summary['总收入'].pct_change().mean() * 100 if len(budget_summary) > 1 else 0
-            monthly_profit_growth = budget_summary['毛利润'].pct_change().mean() * 100 if len(budget_summary) > 1 else 0
-            
-            # 收入构成分析
-            income_composition = {
-                '纠偏后收入占比': budget_summary['纠偏后收入'].sum() / total_revenue * 100 if total_revenue > 0 else 0,
-                '偶然收入占比': budget_summary['偶然收入'].sum() / total_revenue * 100 if total_revenue > 0 else 0
-            }
-            
-            # 支出构成分析
-            expense_composition = {
-                '物料成本占比': budget_summary['物料成本'].sum() / total_expense * 100 if total_expense > 0 else 0,
-                '人工成本占比': budget_summary['成本金额'].sum() / total_expense * 100 if total_expense > 0 else 0,
-                '行政费用占比': budget_summary['月度成本'].sum() / total_expense * 100 if total_expense > 0 else 0,
-                '偶然支出占比': budget_summary['偶然支出'].sum() / total_expense * 100 if total_expense > 0 else 0
-            }
+            if filtered_budget.empty:
+                st.warning(f"在时间段 {start_month} 到 {end_month} 内没有数据，请检查您的预算数据。")
+            else:
+                # === 排序与格式化月份 ===
+                filtered_budget['月份_dt'] = pd.to_datetime(filtered_budget['月份'])
+                filtered_budget = filtered_budget.sort_values('月份_dt').drop(columns=['月份_dt'])
+                filtered_budget['月份_中文'] = pd.to_datetime(filtered_budget['月份']).apply(
+                    lambda x: f"{x.year}年{x.month}月"
+                )
+                filtered_budget = filtered_budget.rename(columns={'月份': '月份_英文', '月份_中文': '月份'})
     
-            # === 投资者仪表板 ===
-            st.subheader("📊 投资者仪表板")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric(
-                    label="总收入",
-                    value=f"¥{total_revenue:,.2f}万",
-                    delta=f"月均: ¥{budget_summary['总收入'].mean():,.2f}万"
-                )
-            with col2:
-                st.metric(
-                    label="总毛利润",
-                    value=f"¥{total_profit:,.2f}万",
-                    delta=f"月均: ¥{budget_summary['毛利润'].mean():,.2f}万"
-                )
-            with col3:
-                st.metric(
-                    label="平均毛利率",
-                    value=f"{avg_margin:.1f}%",
-                    delta=f"月增长: {monthly_profit_growth:.2f}%"
-                )
-            with col4:
-                st.metric(
-                    label="运营支出率",
-                    value=f"{avg_operating_expense_rate:.1f}%",
-                    delta=f"月增长: {monthly_revenue_growth:.2f}%"
-                )
-    
-            # === 专业分析选项卡 ===
-            analysis_tabs = st.tabs(["📈 收入支出分析", "📊 成本结构分析", "💰 盈利能力分析", "📋 详细数据"])
-    
-            with analysis_tabs[0]:
-                st.subheader("收入与支出趋势分析")
+                # === 阶段性订单分析 - 项目生命周期视图 ===
+                st.subheader(f"📊 {start_month} 至 {end_month} 阶段性订单分析")
                 
-                # 收入支出对比图
-                fig_income_expense = go.Figure()
-                fig_income_expense.add_trace(go.Scatter(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['总收入'], 
-                    mode='lines+markers', 
-                    name='总收入', 
-                    line=dict(color='#2E8B57', width=3),
-                    marker=dict(size=8)
-                ))
-                fig_income_expense.add_trace(go.Scatter(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['总支出'], 
-                    mode='lines+markers', 
-                    name='总支出', 
-                    line=dict(color='#DC143C', width=3),
-                    marker=dict(size=8)
-                ))
-                fig_income_expense.add_trace(go.Scatter(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['毛利润'], 
-                    mode='lines+markers', 
-                    name='毛利润', 
-                    line=dict(color='#4169E1', width=3),
-                    marker=dict(size=8)
-                ))
-                fig_income_expense.update_layout(
-                    title='月度收入、支出与利润趋势',
-                    xaxis_title='月份',
-                    yaxis_title='金额 (万元)',
-                    hovermode='x unified',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                st.plotly_chart(fig_income_expense, use_container_width=True)
+                # 项目按生命周期阶段分组
+                project_data = st.session_state.data_manager['income'].data.copy()
+                project_data['交付月份'] = pd.to_datetime(project_data['交付日期']).dt.to_period('M').astype(str)
+                
+                # 按时间段筛选项目
+                filtered_projects = project_data[
+                    (project_data['交付月份'] >= start_month) & (project_data['交付月份'] <= end_month)
+                ].copy()
+                
+                if not filtered_projects.empty:
+                    # 项目生命周期分析
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # 按业务线的项目分布
+                        business_project_summary = filtered_projects.groupby('业务线').agg({
+                            '项目名称': 'count',
+                            '纠偏后收入': 'sum',
+                            '合同金额': 'sum'
+                        }).reset_index()
+                        business_project_summary.columns = ['业务线', '项目数', '收入总额', '合同总额']
+                        business_project_summary['平均项目收入'] = business_project_summary['收入总额'] / business_project_summary['项目数']
+                        
+                        fig_project_business = px.bar(
+                            business_project_summary,
+                            x='业务线',
+                            y='收入总额',
+                            color='业务线',
+                            title='各业务线项目收入分布',
+                            text='项目数',
+                            color_discrete_sequence=px.colors.qualitative.Set2
+                        )
+                        fig_project_business.update_traces(textposition='outside')
+                        fig_project_business.update_layout(
+                            xaxis_tickangle=-45,
+                            yaxis_title='收入 (万元)',
+                            xaxis_title='业务线'
+                        )
+                        st.plotly_chart(fig_project_business, use_container_width=True)
+                    
+                    with col2:
+                        # 项目规模分布
+                        fig_project_size = px.histogram(
+                            filtered_projects,
+                            x='纠偏后收入',
+                            nbins=10,
+                            title='项目规模分布',
+                            color_discrete_sequence=['#2E8B57']
+                        )
+                        fig_project_size.update_layout(
+                            xaxis_title='项目收入 (万元)',
+                            yaxis_title='项目数量'
+                        )
+                        st.plotly_chart(fig_project_size, use_container_width=True)
     
-                # 收入构成饼图
-                col1, col2 = st.columns(2)
+                # === 专业投资视角的关键指标计算 ===
+                total_revenue = filtered_budget['总收入'].sum()
+                total_expense = filtered_budget['总支出'].sum()
+                total_profit = filtered_budget['毛利润'].sum()
+                avg_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
+                avg_operating_expense_rate = (filtered_budget['运营支出'].sum() / total_revenue * 100) if total_revenue > 0 else 0
+                
+                # 月度增长指标
+                monthly_revenue_growth = filtered_budget['总收入'].pct_change().mean() * 100 if len(filtered_budget) > 1 else 0
+                monthly_profit_growth = filtered_budget['毛利润'].pct_change().mean() * 100 if len(filtered_budget) > 1 else 0
+                
+                # 收入构成分析
+                income_composition = {
+                    '纠偏后收入占比': filtered_budget['纠偏后收入'].sum() / total_revenue * 100 if total_revenue > 0 else 0,
+                    '偶然收入占比': filtered_budget['偶然收入'].sum() / total_revenue * 100 if total_revenue > 0 else 0
+                }
+                
+                # 支出构成分析
+                expense_composition = {
+                    '物料成本占比': filtered_budget['物料成本'].sum() / total_expense * 100 if total_expense > 0 else 0,
+                    '人工成本占比': filtered_budget['成本金额'].sum() / total_expense * 100 if total_expense > 0 else 0,
+                    '行政费用占比': filtered_budget['月度成本'].sum() / total_expense * 100 if total_expense > 0 else 0,
+                    '偶然支出占比': filtered_budget['偶然支出'].sum() / total_expense * 100 if total_expense > 0 else 0
+                }
+    
+                # === 投资者仪表板 ===
+                st.subheader(f"📊 {start_month} 至 {end_month} 投资者仪表板")
+                col1, col2, col3, col4 = st.columns(4)
+                
                 with col1:
-                    income_data = [{'类别': k, '占比': v} for k, v in income_composition.items()]
-                    income_df = pd.DataFrame(income_data)
-                    fig_income_comp = px.pie(
-                        income_df, 
+                    st.metric(
+                        label="总收入",
+                        value=f"¥{total_revenue:,.2f}万",
+                        delta=f"月均: ¥{filtered_budget['总收入'].mean():,.2f}万"
+                    )
+                with col2:
+                    st.metric(
+                        label="总毛利润",
+                        value=f"¥{total_profit:,.2f}万",
+                        delta=f"月均: ¥{filtered_budget['毛利润'].mean():,.2f}万"
+                    )
+                with col3:
+                    st.metric(
+                        label="平均毛利率",
+                        value=f"{avg_margin:.1f}%",
+                        delta=f"月增长: {monthly_profit_growth:.2f}%"
+                    )
+                with col4:
+                    st.metric(
+                        label="运营支出率",
+                        value=f"{avg_operating_expense_rate:.1f}%",
+                        delta=f"月增长: {monthly_revenue_growth:.2f}%"
+                    )
+    
+                # === 阶段性业务分析选项卡 ===
+                analysis_tabs = st.tabs([
+                    "📈 收入支出分析", 
+                    "📊 成本结构分析", 
+                    "💰 盈利能力分析", 
+                    "🎯 阶段性业务分析",
+                    "📋 详细数据"
+                ])
+    
+                with analysis_tabs[0]:
+                    st.subheader("收入与支出趋势分析")
+                    
+                    # 收入支出对比图
+                    fig_income_expense = go.Figure()
+                    fig_income_expense.add_trace(go.Scatter(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['总收入'], 
+                        mode='lines+markers', 
+                        name='总收入', 
+                        line=dict(color='#2E8B57', width=3),
+                        marker=dict(size=8)
+                    ))
+                    fig_income_expense.add_trace(go.Scatter(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['总支出'], 
+                        mode='lines+markers', 
+                        name='总支出', 
+                        line=dict(color='#DC143C', width=3),
+                        marker=dict(size=8)
+                    ))
+                    fig_income_expense.add_trace(go.Scatter(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['毛利润'], 
+                        mode='lines+markers', 
+                        name='毛利润', 
+                        line=dict(color='#4169E1', width=3),
+                        marker=dict(size=8)
+                    ))
+                    fig_income_expense.update_layout(
+                        title='月度收入、支出与利润趋势',
+                        xaxis_title='月份',
+                        yaxis_title='金额 (万元)',
+                        hovermode='x unified',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
+                    st.plotly_chart(fig_income_expense, use_container_width=True)
+    
+                    # 收入构成饼图
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        income_data = [{'类别': k, '占比': v} for k, v in income_composition.items()]
+                        income_df = pd.DataFrame(income_data)
+                        fig_income_comp = px.pie(
+                            income_df, 
+                            values='占比', 
+                            names='类别', 
+                            title='收入构成分析',
+                            color_discrete_sequence=px.colors.sequential.Viridis
+                        )
+                        st.plotly_chart(fig_income_comp, use_container_width=True)
+                    
+                    with col2:
+                        # 现金流健康度指标
+                        st.subheader("现金流健康度")
+                        positive_months = len(filtered_budget[filtered_budget['毛利润'] > 0])
+                        total_months = len(filtered_budget)
+                        profitability_rate = (positive_months / total_months * 100) if total_months > 0 else 0
+                        
+                        st.metric(
+                            label="盈利月份数",
+                            value=f"{positive_months}/{total_months}",
+                            delta=f"盈利率: {profitability_rate:.1f}%"
+                        )
+                        
+                        # 累计现金流
+                        filtered_budget['累计现金流'] = filtered_budget['毛利润'].cumsum()
+                        fig_cashflow = px.line(
+                            filtered_budget, 
+                            x='月份', 
+                            y='累计现金流', 
+                            title='累计现金流趋势',
+                            markers=True
+                        )
+                        fig_cashflow.update_layout(
+                            yaxis_title='累计现金流 (万元)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig_cashflow, use_container_width=True)
+    
+                with analysis_tabs[1]:
+                    st.subheader("成本结构分析")
+                    
+                    # 支出构成饼图
+                    expense_data = [{'类别': k, '占比': v} for k, v in expense_composition.items()]
+                    expense_df = pd.DataFrame(expense_data)
+                    fig_expense_comp = px.pie(
+                        expense_df, 
                         values='占比', 
                         names='类别', 
-                        title='收入构成分析',
-                        color_discrete_sequence=px.colors.sequential.Viridis
+                        title='支出构成分析',
+                        color_discrete_sequence=px.colors.sequential.Plasma_r
                     )
-                    st.plotly_chart(fig_income_comp, use_container_width=True)
-                
-                with col2:
-                    # 现金流健康度指标
-                    st.subheader("现金流健康度")
-                    positive_months = len(budget_summary[budget_summary['毛利润'] > 0])
-                    total_months = len(budget_summary)
-                    profitability_rate = (positive_months / total_months * 100) if total_months > 0 else 0
+                    st.plotly_chart(fig_expense_comp, use_container_width=True)
                     
-                    st.metric(
-                        label="盈利月份数",
-                        value=f"{positive_months}/{total_months}",
-                        delta=f"盈利率: {profitability_rate:.1f}%"
+                    # 月度支出趋势
+                    fig_monthly_expense = go.Figure()
+                    fig_monthly_expense.add_trace(go.Bar(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['物料成本'], 
+                        name='物料成本',
+                        marker_color='#FF6B6B'
+                    ))
+                    fig_monthly_expense.add_trace(go.Bar(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['成本金额'], 
+                        name='人工成本',
+                        marker_color='#4ECDC4'
+                    ))
+                    fig_monthly_expense.add_trace(go.Bar(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['月度成本'], 
+                        name='行政费用',
+                        marker_color='#45B7D1'
+                    ))
+                    fig_monthly_expense.add_trace(go.Bar(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['偶然支出'], 
+                        name='偶然支出',
+                        marker_color='#96CEB4'
+                    ))
+                    fig_monthly_expense.update_layout(
+                        title='月度支出构成',
+                        xaxis_title='月份',
+                        yaxis_title='金额 (万元)',
+                        barmode='stack',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                     )
+                    st.plotly_chart(fig_monthly_expense, use_container_width=True)
+    
+                with analysis_tabs[2]:
+                    st.subheader("盈利能力分析")
                     
-                    # 累计现金流
-                    budget_summary['累计现金流'] = budget_summary['毛利润'].cumsum()
-                    fig_cashflow = px.line(
-                        budget_summary, 
-                        x='月份', 
-                        y='累计现金流', 
-                        title='累计现金流趋势',
-                        markers=True
-                    )
-                    fig_cashflow.update_layout(
-                        yaxis_title='累计现金流 (万元)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(fig_cashflow, use_container_width=True)
-    
-            with analysis_tabs[1]:
-                st.subheader("成本结构分析")
-                
-                # 支出构成饼图
-                expense_data = [{'类别': k, '占比': v} for k, v in expense_composition.items()]
-                expense_df = pd.DataFrame(expense_data)
-                fig_expense_comp = px.pie(
-                    expense_df, 
-                    values='占比', 
-                    names='类别', 
-                    title='支出构成分析',
-                    color_discrete_sequence=px.colors.sequential.Plasma_r
-                )
-                st.plotly_chart(fig_expense_comp, use_container_width=True)
-                
-                # 月度支出趋势
-                fig_monthly_expense = go.Figure()
-                fig_monthly_expense.add_trace(go.Bar(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['物料成本'], 
-                    name='物料成本',
-                    marker_color='#FF6B6B'
-                ))
-                fig_monthly_expense.add_trace(go.Bar(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['成本金额'], 
-                    name='人工成本',
-                    marker_color='#4ECDC4'
-                ))
-                fig_monthly_expense.add_trace(go.Bar(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['月度成本'], 
-                    name='行政费用',
-                    marker_color='#45B7D1'
-                ))
-                fig_monthly_expense.add_trace(go.Bar(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['偶然支出'], 
-                    name='偶然支出',
-                    marker_color='#96CEB4'
-                ))
-                fig_monthly_expense.update_layout(
-                    title='月度支出构成',
-                    xaxis_title='月份',
-                    yaxis_title='金额 (万元)',
-                    barmode='stack',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                st.plotly_chart(fig_monthly_expense, use_container_width=True)
-    
-            with analysis_tabs[2]:
-                st.subheader("盈利能力分析")
-                
-                # 毛利率趋势
-                fig_margin = go.Figure()
-                fig_margin.add_trace(go.Scatter(
-                    x=budget_summary['月份'], 
-                    y=budget_summary['毛利率'], 
-                    mode='lines+markers', 
-                    name='毛利率', 
-                    line=dict(color='#FF6B6B', width=3),
-                    marker=dict(size=8)
-                ))
-                fig_margin.add_hline(
-                    y=avg_margin, 
-                    line_dash="dash", 
-                    line_color="red", 
-                    annotation_text=f"平均毛利率: {avg_margin:.1f}%"
-                )
-                fig_margin.update_layout(
-                    title='月度毛利率趋势',
-                    xaxis_title='月份',
-                    yaxis_title='毛利率 (%)',
-                    yaxis_range=[-100, 100],
-                    hovermode='x unified',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)'
-                )
-                st.plotly_chart(fig_margin, use_container_width=True)
-                
-                # 盈利能力对比
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # 毛利率与运营支出率对比
-                    fig_profitability = go.Figure()
-                    fig_profitability.add_trace(go.Bar(
-                        x=budget_summary['月份'], 
-                        y=budget_summary['毛利率'], 
-                        name='毛利率',
-                        marker_color='#2E8B57'
-                    ))
-                    fig_profitability.add_trace(go.Bar(
-                        x=budget_summary['月份'], 
-                        y=budget_summary['运营支出率'] * -1, 
-                        name='运营支出率',
-                        marker_color='#DC143C'
-                    ))
-                    fig_profitability.update_layout(
-                        title='毛利率 vs 运营支出率',
-                        xaxis_title='月份',
-                        yaxis_title='百分比 (%)',
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)'
-                    )
-                    st.plotly_chart(fig_profitability, use_container_width=True)
-                
-                with col2:
-                    # 收入与利润增长率
-                    fig_growth = go.Figure()
-                    fig_growth.add_trace(go.Scatter(
-                        x=budget_summary['月份'], 
-                        y=budget_summary['总收入'].pct_change() * 100, 
+                    # 毛利率趋势
+                    fig_margin = go.Figure()
+                    fig_margin.add_trace(go.Scatter(
+                        x=filtered_budget['月份'], 
+                        y=filtered_budget['毛利率'], 
                         mode='lines+markers', 
-                        name='收入增长率',
-                        line=dict(color='#4169E1', width=2),
-                        marker=dict(size=6)
+                        name='毛利率', 
+                        line=dict(color='#FF69B4', width=3),
+                        marker=dict(size=8)
                     ))
-                    fig_growth.add_trace(go.Scatter(
-                        x=budget_summary['月份'], 
-                        y=budget_summary['毛利润'].pct_change() * 100, 
-                        mode='lines+markers', 
-                        name='利润增长率',
-                        line=dict(color='#FF69B4', width=2),
-                        marker=dict(size=6)
-                    ))
-                    fig_growth.update_layout(
-                        title='收入与利润增长率',
+                    fig_margin.add_hline(
+                        y=avg_margin, 
+                        line_dash="dash", 
+                        line_color="red", 
+                        annotation_text=f"平均毛利率: {avg_margin:.1f}%"
+                    )
+                    fig_margin.update_layout(
+                        title='月度毛利率趋势',
                         xaxis_title='月份',
-                        yaxis_title='增长率 (%)',
+                        yaxis_title='毛利率 (%)',
+                        yaxis_range=[-100, 100],
                         hovermode='x unified',
                         plot_bgcolor='rgba(0,0,0,0)',
                         paper_bgcolor='rgba(0,0,0,0)'
                     )
-                    st.plotly_chart(fig_growth, use_container_width=True)
+                    st.plotly_chart(fig_margin, use_container_width=True)
+                    
+                    # 盈利能力对比
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # 毛利率与运营支出率对比
+                        fig_profitability = go.Figure()
+                        fig_profitability.add_trace(go.Bar(
+                            x=filtered_budget['月份'], 
+                            y=filtered_budget['毛利率'], 
+                            name='毛利率',
+                            marker_color='#2E8B57'
+                        ))
+                        fig_profitability.add_trace(go.Bar(
+                            x=filtered_budget['月份'], 
+                            y=filtered_budget['运营支出率'] * -1, 
+                            name='运营支出率',
+                            marker_color='#DC143C'
+                        ))
+                        fig_profitability.update_layout(
+                            title='毛利率 vs 运营支出率',
+                            xaxis_title='月份',
+                            yaxis_title='百分比 (%)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig_profitability, use_container_width=True)
+                    
+                    with col2:
+                        # 收入与利润增长率
+                        fig_growth = go.Figure()
+                        fig_growth.add_trace(go.Scatter(
+                            x=filtered_budget['月份'], 
+                            y=filtered_budget['总收入'].pct_change() * 100, 
+                            mode='lines+markers', 
+                            name='收入增长率',
+                            line=dict(color='#4169E1', width=2),
+                            marker=dict(size=6)
+                        ))
+                        fig_growth.add_trace(go.Scatter(
+                            x=filtered_budget['月份'], 
+                            y=filtered_budget['毛利润'].pct_change() * 100, 
+                            mode='lines+markers', 
+                            name='利润增长率',
+                            line=dict(color='#96CEB4', width=2),
+                            marker=dict(size=6)
+                        ))
+                        fig_growth.update_layout(
+                            title='收入与利润增长率',
+                            xaxis_title='月份',
+                            yaxis_title='增长率 (%)',
+                            hovermode='x unified',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)'
+                        )
+                        st.plotly_chart(fig_growth, use_container_width=True)
     
-            with analysis_tabs[3]:
-                st.subheader("月度预算汇总表")
-                budget_display = budget_summary.copy()
-                budget_display = budget_display.rename(columns={'月份': '月份_中文'})
+                with analysis_tabs[3]:
+                    st.subheader("🎯 阶段性业务分析")
+                    
+                    # 项目生命周期视图
+                    if not filtered_projects.empty:
+                        # 项目按交付时间分布
+                        project_timeline = px.scatter(
+                            filtered_projects,
+                            x='交付月份',
+                            y='纠偏后收入',
+                            size='合同金额',
+                            color='业务线',
+                            hover_name='项目名称',
+                            title='项目交付时间线（气泡图）',
+                            labels={'纠偏后收入': '收入 (万元)', '交付月份': '交付月份'}
+                        )
+                        project_timeline.update_layout(
+                            xaxis_title='交付月份',
+                            yaxis_title='项目收入 (万元)',
+                            xaxis_tickangle=-45
+                        )
+                        st.plotly_chart(project_timeline, use_container_width=True)
+                        
+                        # 项目交付密度图
+                        delivery_density = filtered_projects.groupby('交付月份').agg({
+                            '项目名称': 'count',
+                            '纠偏后收入': 'sum'
+                        }).reset_index()
+                        delivery_density.columns = ['交付月份', '项目数量', '总收入']
+                        
+                        fig_density = go.Figure()
+                        fig_density.add_trace(go.Bar(
+                            x=delivery_density['交付月份'],
+                            y=delivery_density['项目数量'],
+                            name='项目数量',
+                            yaxis='y',
+                            marker_color='#96CEB4'
+                        ))
+                        fig_density.add_trace(go.Scatter(
+                            x=delivery_density['交付月份'],
+                            y=delivery_density['总收入'],
+                            mode='lines+markers',
+                            name='总收入',
+                            yaxis='y2',
+                            line=dict(color='#FF6B6B', width=3),
+                            marker=dict(size=8)
+                        ))
+                        
+                        fig_density.update_layout(
+                            title='项目交付密度与收入',
+                            xaxis_title='交付月份',
+                            yaxis=dict(title='项目数量', side='left'),
+                            yaxis2=dict(title='总收入 (万元)', side='right', overlaying='y'),
+                            hovermode='x unified'
+                        )
+                        st.plotly_chart(fig_density, use_container_width=True)
+                        
+                        # 阶段性业务健康度指标
+                        st.subheader("阶段性业务健康度")
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            avg_project_value = filtered_projects['纠偏后收入'].mean()
+                            st.metric(
+                                label="平均项目价值",
+                                value=f"¥{avg_project_value:,.2f}万",
+                                delta=f"标准差: ¥{filtered_projects['纠偏后收入'].std():,.2f}万"
+                            )
+                        
+                        with col2:
+                            project_count = len(filtered_projects)
+                            st.metric(
+                                label="项目总数",
+                                value=project_count,
+                                delta=f"月均: {project_count/len(filtered_budget):.1f} 个"
+                            )
+                        
+                        with col3:
+                            concentration = (filtered_projects['纠偏后收入'].max() / filtered_projects['纠偏后收入'].sum() * 100) if filtered_projects['纠偏后收入'].sum() > 0 else 0
+                            st.metric(
+                                label="最大项目占比",
+                                value=f"{concentration:.1f}%",
+                                delta="收入集中度"
+                            )
+                        
+                        # 项目详情表格
+                        st.subheader("项目详情")
+                        project_display = filtered_projects[['项目名称', '业务线', '交付月份', '合同金额', '纠偏后收入', '毛利率']].copy()
+                        project_display = project_display.rename(columns={'交付月份': '交付月份_中文'})
+                        st.dataframe(
+                            project_display.style.format({
+                                '合同金额': '¥{:.2f}万',
+                                '纠偏后收入': '¥{:.2f}万',
+                                '毛利率': '{:.2f}%'
+                            }),
+                            use_container_width=True
+                        )
+    
+                with analysis_tabs[4]:
+                    st.subheader("月度预算汇总表")
+                    budget_display = filtered_budget.copy()
+                    budget_display = budget_display.rename(columns={'月份': '月份_中文'})
+                    
+                    # 格式化显示
+                    st.dataframe(
+                        budget_display.style.format({
+                            '总收入': '¥{:.2f}万', 
+                            '纠偏后收入': '¥{:.2f}万', 
+                            '物料成本': '¥{:.2f}万', 
+                            '成本金额': '¥{:.2f}万',
+                            '月度成本': '¥{:.2f}万', 
+                            '偶然收入': '¥{:.2f}万', 
+                            '偶然支出': '¥{:.2f}万',
+                            '总支出': '¥{:.2f}万', 
+                            '毛利润': '¥{:.2f}万',
+                            '毛利率': '{:.2f}%',
+                            '运营支出率': '{:.2f}%'
+                        }),
+                        use_container_width=True
+                    )
+    
+                # === 投资者关注的核心指标摘要 ===
+                st.subheader(f"🎯 {start_month} 至 {end_month} 投资者关注的核心指标")
+                col1, col2, col3, col4 = st.columns(4)
                 
-                # 格式化显示
-                st.dataframe(
-                    budget_display.style.format({
-                        '总收入': '¥{:.2f}万', 
-                        '纠偏后收入': '¥{:.2f}万', 
-                        '物料成本': '¥{:.2f}万', 
-                        '成本金额': '¥{:.2f}万',
-                        '月度成本': '¥{:.2f}万', 
-                        '偶然收入': '¥{:.2f}万', 
-                        '偶然支出': '¥{:.2f}万',
-                        '总支出': '¥{:.2f}万', 
-                        '毛利润': '¥{:.2f}万',
-                        '毛利率': '{:.2f}%',
-                        '运营支出率': '{:.2f}%'
-                    }),
-                    use_container_width=True
-                )
-    
-            # === 投资者关注的核心指标摘要 ===
-            st.subheader("🎯 投资者关注的核心指标")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.info(f"""
-                **收入质量**
-                - 总收入: ¥{total_revenue:,.2f}万
-                - 稳定收入占比: {income_composition['纠偏后收入占比']:.1f}%
-                """)
-            
-            with col2:
-                st.success(f"""
-                **盈利能力**
-                - 毛利润: ¥{total_profit:,.2f}万
-                - 平均毛利率: {avg_margin:.1f}%
-                - 盈利月占比: {profitability_rate:.1f}%
-                """)
-            
-            with col3:
-                st.warning(f"""
-                **成本控制**
-                - 总支出: ¥{total_expense:,.2f}万
-                - 运营支出率: {avg_operating_expense_rate:.1f}%
-                - 人工成本占比: {expense_composition['人工成本占比']:.1f}%
-                """)
-            
-            with col4:
-                st.error(f"""
-                **风险提示**
-                - 最低月利润: ¥{budget_summary['毛利润'].min():,.2f}万
-                - 最高月支出: ¥{budget_summary['总支出'].max():,.2f}万
-                - 月度波动率: {budget_summary['总收入'].std()/budget_summary['总收入'].mean()*100:.2f}%
-                """)
+                with col1:
+                    st.info(f"""
+                    **收入质量**
+                    - 总收入: ¥{total_revenue:,.2f}万
+                    - 稳定收入占比: {income_composition['纠偏后收入占比']:.1f}%
+                    - 项目数量: {len(filtered_projects) if 'filtered_projects' in locals() else 0} 个
+                    """)
+                
+                with col2:
+                    st.success(f"""
+                    **盈利能力**
+                    - 毛利润: ¥{total_profit:,.2f}万
+                    - 平均毛利率: {avg_margin:.1f}%
+                    - 盈利月占比: {((filtered_budget['毛利润'] > 0).sum() / len(filtered_budget) * 100):.1f}%
+                    """)
+                
+                with col3:
+                    st.warning(f"""
+                    **成本控制**
+                    - 总支出: ¥{total_expense:,.2f}万
+                    - 运营支出率: {avg_operating_expense_rate:.1f}%
+                    - 人工成本占比: {expense_composition['人工成本占比']:.1f}%
+                    """)
+                
+                with col4:
+                    st.error(f"""
+                    **风险提示**
+                    - 最低月利润: ¥{filtered_budget['毛利润'].min():,.2f}万
+                    - 最高月支出: ¥{filtered_budget['总支出'].max():,.2f}万
+                    - 收入波动率: {filtered_budget['总收入'].std()/filtered_budget['总收入'].mean()*100:.2f}%
+                    """)
     
         else:
             st.info("暂无收入数据。请先添加收入预算项目以生成全面预算汇总表。")
@@ -2689,6 +2882,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
