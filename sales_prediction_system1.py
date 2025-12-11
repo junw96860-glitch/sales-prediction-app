@@ -2126,14 +2126,14 @@ def main():
         with col1:
             start_month = st.selectbox(
                 "开始月份", 
-                options=[f"{year}-{month:02d}" for year in range(2024, 2028) for month in range(1, 13)],
+                options=[f"{year}-{month:02d}" for year in range(2025, 2030) for month in range(1, 13)],
                 index=12,  # 默认2025年1月
                 help="选择分析的起始月份"
             )
         with col2:
             end_month = st.selectbox(
                 "结束月份", 
-                options=[f"{year}-{month:02d}" for year in range(2024, 2028) for month in range(1, 13)],
+                options=[f"{year}-{month:02d}" for year in range(2025, 2030) for month in range(1, 13)],
                 index=24,  # 默认2026年1月
                 help="选择分析的结束月份"
             )
@@ -2882,6 +2882,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
