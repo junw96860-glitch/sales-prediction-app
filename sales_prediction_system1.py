@@ -2731,7 +2731,7 @@ def main():
                         
                         # 项目详情表格
                         st.subheader("项目详情")
-                        project_display = filtered_projects[['项目名称', '业务线', '交付月份', '合同金额', '纠偏后收入', '毛利率']].copy()
+                        project_display = filtered_projects[['项目名称', '业务线', '交付月份', '合同金额', '纠偏后收入']].copy()
                         project_display = project_display.rename(columns={'交付月份': '交付月份_中文'})
                         st.dataframe(
                             project_display.style.format({
@@ -2882,6 +2882,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
