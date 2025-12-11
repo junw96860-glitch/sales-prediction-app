@@ -14,7 +14,44 @@ import base64
 from io import BytesIO
 from PIL import Image
 import matplotlib.pyplot as plt
+def initialize_cost_categories():
+    """初始化费用分类结构"""
+    cost_categories = {
+        "行政支出": [
+            "办公设备", "办公费", "办公家具", "企业日常维护", 
+            "培训费", "福利费", "办公软件"
+        ],
+        "营销支出": [
+            "推广费", "品牌建设费", "展会费", "业务招待费"
+        ],
+        "研发支出": [
+            "部测试与验证费用", "研发测试用", "研发日常工具", 
+            "研发设备与仪器采购费用", "研发样品用"
+        ],
+        "营业成本": [],
+        "差旅费": [],
+        "场地费": [
+            "杭州场地租金", "杭州场地能耗费", 
+            "重庆场地租金", "重庆场地能耗费", 
+            "重庆实验室场地租金", "重庆实验室场地能耗费"
+        ],
+        "专家咨询费": [
+            "知识产权", "审计/咨询/诉讼费"
+        ]
+    }
+    
+    # 保存到JSON文件
+    with open('cost_categories.json', 'w', encoding='utf-8') as f:
+        json.dump(cost_categories, f, ensure_ascii=False, indent=2)
+    
+    return cost_categories
 
+# 检查并初始化费用分类文件
+if not os.path.exists('cost_categories.json'):
+    cost_categories = initialize_cost_categories()
+else:
+    with open('cost_categories.json', 'r', encoding='utf-8') as f:
+        cost_categories = json.load(f)
 
 class DataManager:
     """数据管理类，负责数据的加载、保存和兼容性处理"""
@@ -288,41 +325,60 @@ class AdminCostManager(CostManager):
         
         admin_cost_data = []
         for _, row in self.data.iterrows():
-            cost_type = row['费用类型']
+            cost_type = row['费用类型']  # 这里应该是二级分类
             monthly_cost = row['月度成本']
             start_date = pd.to_datetime(row['开始日期'])
             end_date = pd.to_datetime(row['结束日期'])
             payment_frequency = row['付款频率']
             
+            # 获取一级分类
+            primary_category = self.get_primary_category(cost_type)
+            
             if payment_frequency == '月度':
                 current_date = start_date.replace(day=1)
                 while current_date <= end_date:
                     admin_cost_data.append({
-                        '费用类型': cost_type, '费用项目': row['费用项目'],
+                        '一级分类': primary_category,
+                        '费用类型': cost_type,  # 二级分类
+                        '费用项目': row['费用项目'],
                         '月度成本': round(monthly_cost, 2),
                         '支出月份': f"{current_date.year}-{current_date.month:02d}",
-                        '支出日期': current_date, '付款频率': payment_frequency
+                        '支出日期': current_date, 
+                        '付款频率': payment_frequency
                     })
                     current_date = current_date + pd.DateOffset(months=1)
             elif payment_frequency == '季度':
                 current_date = start_date.replace(day=1)
                 while current_date <= end_date:
                     admin_cost_data.append({
-                        '费用类型': cost_type, '费用项目': row['费用项目'],
+                        '一级分类': primary_category,
+                        '费用类型': cost_type,  # 二级分类
+                        '费用项目': row['费用项目'],
                         '月度成本': round(monthly_cost * 3, 2),
                         '支出月份': f"{current_date.year}-{current_date.month:02d}",
-                        '支出日期': current_date, '付款频率': payment_frequency
+                        '支出日期': current_date, 
+                        '付款频率': payment_frequency
                     })
                     current_date = current_date + pd.DateOffset(months=3)
             elif payment_frequency == '年度':
                 current_date = start_date.replace(day=1)
                 admin_cost_data.append({
-                    '费用类型': cost_type, '费用项目': row['费用项目'],
+                    '一级分类': primary_category,
+                    '费用类型': cost_type,  # 二级分类
+                    '费用项目': row['费用项目'],
                     '月度成本': round(monthly_cost * 12, 2),
                     '支出月份': f"{current_date.year}-{current_date.month:02d}",
-                    '支出日期': current_date, '付款频率': payment_frequency
+                    '支出日期': current_date, 
+                    '付款频率': payment_frequency
                 })
         return pd.DataFrame(admin_cost_data)
+    
+    def get_primary_category(self, secondary_category):
+        """根据二级分类获取一级分类"""
+        for primary, secondaries in cost_categories.items():
+            if secondary_category in secondaries or primary == secondary_category:
+                return primary
+        return "其他"  # 默认分类
 
 
 class ExportManager:
@@ -389,14 +445,14 @@ def generate_template_data() -> Dict[str, pd.DataFrame]:
         '结束日期': ['2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31']
     })
     
-    # 行政费用模板 - 更新费用类型
+    # 行政费用模板 - 使用新的分类结构
     templates['admin'] = pd.DataFrame({
-        '费用类型': ['房租费用', '水电费用', '办公用品', '差旅费用', '研发支出', '营销支出', '售前支出', '财务税费'],
-        '费用项目': ['总部大楼', '水电费', '办公用品采购', '差旅费', '研发设备', '市场推广', '售前支持', '税费缴纳'],
-        '月度成本': [10.0, 2.0, 1.0, 3.0, 5.0, 4.0, 2.5, 1.5],
-        '开始日期': ['2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01'],
-        '结束日期': ['2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31'],
-        '付款频率': ['月度', '月度', '季度', '月度', '月度', '月度', '月度', '季度']
+        '费用类型': ['办公设备', '办公费', '差旅费', '推广费', '杭州场地租金'],
+        '费用项目': ['电脑采购', '打印纸', '出差费用', '广告投放', '杭州办公室租金'],
+        '月度成本': [2.0, 0.5, 1.0, 3.0, 5.0],
+        '开始日期': ['2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01', '2025-01-01'],
+        '结束日期': ['2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31', '2025-12-31'],
+        '付款频率': ['月度', '季度', '月度', '月度', '月度']
     })
     
     return templates
@@ -1592,8 +1648,24 @@ def main():
             with st.expander("➕ 添加行政费用"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    # 添加新的费用类型选项
-                    expense_type = st.selectbox("费用类型", ["房租费用", "水电费用", "办公用品", "差旅费用", "研发支出", "营销支出", "售前支出", "财务税费", "其他"], key="admin_expense_type")
+                    # 获取所有二级分类选项
+                    all_secondary_categories = []
+                    for primary, secondaries in cost_categories.items():
+                        all_secondary_categories.extend(secondaries)
+                        if not secondaries:  # 如果该一级分类下没有二级分类，也添加一级分类名称
+                            all_secondary_categories.append(primary)
+                    
+                    expense_type = st.selectbox("费用类型（二级分类）", all_secondary_categories, key="admin_expense_type")
+                    
+                    # 根据选择的二级分类自动获取一级分类
+                    primary_category = "请选择"
+                    for primary, secondaries in cost_categories.items():
+                        if expense_type in secondaries or (not secondaries and primary == expense_type):
+                            primary_category = primary
+                            break
+                    
+                    st.text_input("一级分类", value=primary_category, disabled=True, key="primary_category_display")
+                    
                     expense_item = st.text_input("费用项目", placeholder="如：办公室租金、水电费等", key="expense_item")
                     monthly_cost = st.number_input("月度成本 (万元)", min_value=0.0, value=1.0, step=0.1, key="admin_monthly_cost")
                 with col2:
@@ -1604,7 +1676,14 @@ def main():
                     if not expense_item: 
                         st.error("费用项目不能为空")
                     else:
-                        new_admin = {'费用类型': expense_type, '费用项目': expense_item, '月度成本': round(monthly_cost, 2), '开始日期': start_date, '结束日期': end_date, '付款频率': payment_frequency}
+                        new_admin = {
+                            '费用类型': expense_type,  # 二级分类
+                            '费用项目': expense_item, 
+                            '月度成本': round(monthly_cost, 2), 
+                            '开始日期': start_date, 
+                            '结束日期': end_date, 
+                            '付款频率': payment_frequency
+                        }
                         new_df = pd.DataFrame([new_admin])
                         if st.session_state.data_manager['admin'].data.empty:
                             st.session_state.data_manager['admin'].data = new_df.copy()
@@ -1700,9 +1779,15 @@ def main():
                     
                     st.subheader("费用类型分布")
                     type_summary = admin_monthly_df.groupby('费用类型')['月度成本'].sum().reset_index()
-                    fig_admin_type = px.pie(type_summary, values='月度成本', names='费用类型', title='行政费用类型分布', hole=0.3, color_discrete_sequence=px.colors.qualitative.Set3)
+                    fig_admin_type = px.pie(type_summary, values='月度成本', names='费用类型', title='行政费用二级分类分布', hole=0.3, color_discrete_sequence=px.colors.qualitative.Set3)
                     fig_admin_type.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig_admin_type, use_container_width=True)
+                    
+                    # 添加一级分类分布图
+                    primary_summary = admin_monthly_df.groupby('一级分类')['月度成本'].sum().reset_index()
+                    fig_primary_type = px.pie(primary_summary, values='月度成本', names='一级分类', title='行政费用一级分类分布', hole=0.3, color_discrete_sequence=px.colors.qualitative.Set2)
+                    fig_primary_type.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(fig_primary_type, use_container_width=True)
                     
                     st.subheader("月度行政费用趋势")
                     monthly_summary = admin_monthly_df.groupby('支出月份')['月度成本'].sum().reset_index()
@@ -1720,7 +1805,9 @@ def main():
                     admin_display['支出月份_中文'] = pd.to_datetime(admin_display['支出月份']).apply(lambda x: f"{x.year}年{x.month}月")
                     admin_display = admin_display.rename(columns={'支出月份': '支出月份_英文'})
                     admin_display = admin_display.rename(columns={'支出月份_中文': '支出月份'})
-                    st.dataframe(admin_display.style.format({'月度成本': '{:.2f}'}), use_container_width=True)
+                    # 重新排序列，使一级分类在费用类型之前
+                    admin_display = admin_display[['一级分类', '费用类型', '费用项目', '支出月份', '月度成本', '付款频率', '支出日期']]
+                    st.dataframe(admin_display.style.format({'月度成本': '{:.2f}'}), use_container_width=True
             else: 
                 st.info("暂无行政费用数据。请添加行政费用项目或导入数据。")
         
@@ -2283,6 +2370,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
